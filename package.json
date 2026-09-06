@@ -1,0 +1,62 @@
+{
+  "name": "n8n-nodes-alertroster",
+  "version": "0.1.0",
+  "description": "n8n community node for AlertRoster: call-out notification, on-call scheduling, and escalation",
+  "keywords": [
+    "n8n-community-node-package",
+    "alertroster",
+    "on-call",
+    "incident",
+    "escalation",
+    "paging"
+  ],
+  "license": "MIT",
+  "author": {
+    "name": "CloudBedrock",
+    "email": "support@cloudbedrock.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CloudBedrock/n8n-nodes-alertroster.git"
+  },
+  "homepage": "https://alertroster.com",
+  "bugs": {
+    "url": "https://github.com/CloudBedrock/n8n-nodes-alertroster/issues"
+  },
+  "engines": {
+    "node": ">=20.15"
+  },
+  "scripts": {
+    "build": "npx rimraf dist && tsc && gulp build:icons && cp package.json dist/",
+    "dev": "tsc --watch",
+    "format": "prettier nodes credentials utils --write",
+    "lint": "eslint nodes/**/*.ts credentials/**/*.ts utils/**/*.ts --ext .ts",
+    "lintfix": "eslint nodes/**/*.ts credentials/**/*.ts utils/**/*.ts --ext .ts --fix",
+    "prepublishOnly": "npm run build"
+  },
+  "files": [
+    "dist"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [
+      "dist/credentials/AlertRosterIntegrationKeyApi.credentials.js",
+      "dist/credentials/AlertRosterResponderApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/AlertRoster/AlertRoster.node.js",
+      "dist/nodes/AlertRoster/AlertRosterTrigger.node.js"
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.12",
+    "@typescript-eslint/parser": "~8.32.0",
+    "eslint": "^8.57.0",
+    "eslint-plugin-n8n-nodes-base": "^1.16.3",
+    "gulp": "^5.0.0",
+    "n8n-workflow": "^1.82.0",
+    "prettier": "^3.5.0",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.8.3"
+  }
+}
