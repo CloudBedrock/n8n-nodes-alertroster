@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      # --ignore-scripts: n8n-workflow pulls in isolated-vm, whose native build
+      # is not needed to compile or lint this package.
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npm run lint
+      # Fails when the published AlertRoster API has an operation this node
+      # neither implements nor excuses in scripts/openapi-coverage-allowlist.json,
+      # or when the node calls a route the API no longer documents (exit 1).
+      # A spec that cannot be fetched (exit 2) is a warning, not a failure, so
+      # an outage does not redden an unrelated PR; drift still does.
+      - name: Check OpenAPI coverage
+        run: |
+          set +e
+          npm run check:coverage
+          rc=$?
+          if [ "$rc" -eq 2 ]; then
+            echo "::warning::Could not load the AlertRoster OpenAPI document; coverage not checked"
+            exit 0
+          fi
+          exit "$rc"

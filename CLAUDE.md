@@ -16,9 +16,12 @@ npm run dev        # tsc --watch (does not copy icons)
 npm run lint       # eslint over nodes/ credentials/ utils/ (n8n-nodes-base ruleset)
 npm run lintfix
 npm run format     # prettier --write over nodes/ credentials/ utils/
+npm run check:coverage   # diff the routes the node calls against the published OpenAPI spec
 ```
 
-There is no test suite. Verification is `npm run build` + `npm run lint` clean, then a smoke test against a live AlertRoster instance (dev tunnel: `https://om.alertroster.com`) and a load into a local n8n:
+`npm install` needs `--ignore-scripts` on Node 22+: `n8n-workflow` drags in `isolated-vm`, whose native build fails there and is not needed to compile or lint.
+
+There is no test suite. Verification is `npm run build` + `npm run lint` + `npm run check:coverage` clean, then a smoke test against a live AlertRoster instance (dev tunnel: `https://om.alertroster.com`) and a load into a local n8n:
 
 ```sh
 npm run build && npm link
@@ -53,4 +56,8 @@ AlertRoster has no outbound webhooks, no pagination, and `GET /api/v1/incidents`
 
 ### API reference
 
-There is no OpenAPI document. Route contracts live in the AlertRoster backend's `docs/*_API.md` files. Out of scope for v0.1 (per spec): devices, receivers, account deletion, Switchboard agent socket, WebSocket incident channel.
+AlertRoster publishes an OpenAPI 3 document at `GET /api/docs/openapi.json` (production: `https://alertroster.com/api/docs/openapi.json`), generated from its router; the prose contracts are the backend's `docs/*_API.md` files. Out of scope for v0.1 (per spec): devices, receivers, account deletion, Switchboard agent socket, WebSocket incident channel.
+
+`scripts/check-openapi-coverage.mjs` (`npm run check:coverage`, also run by `.github/workflows/ci.yml`) static-scans every `request('METHOD', 'path')` call in `nodes/` and `utils/` and compares it with the spec. It fails on a spec operation the node neither implements nor excuses, on a call to a route the spec no longer has, and on an allowlist entry that is now implemented or gone. `scripts/openapi-coverage-allowlist.json` holds the excused operations, each with a reason; it doubles as the backlog of server surface the node lacks. Adding an operation therefore means either calling it with a literal method and path (so the scan finds it) or removing its allowlist entry. Pass `--spec <url|file>` or set `ALERTROSTER_OPENAPI_URL` to check against another host (for example the dev tunnel).
+
+The spec carries summaries, parameters and request/response *examples*, but no JSON schemas, so it cannot drive generation of the resource descriptors (assessed in `docs/superpowers/specs/2026-09-06-openapi-generation-spike.md`); the descriptors stay hand-written and the coverage check is what keeps them honest.
