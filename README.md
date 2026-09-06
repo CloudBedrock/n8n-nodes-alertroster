@@ -192,7 +192,8 @@ API has an operation this node neither implements nor excuses in
 `scripts/openapi-coverage-allowlist.json`, or when the node calls a route the
 API no longer documents. The allowlist is the list of server surface the node
 deliberately lacks, each entry with its reason. CI (`.github/workflows/ci.yml`)
-runs build, lint and this check on every push and pull request.
+runs build, lint and this check on every pull request and on pushes to `main`;
+a spec that cannot be fetched is a CI warning, drift is a failure.
 
 To try it locally, link the package into your n8n custom directory:
 
