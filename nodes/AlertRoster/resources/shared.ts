@@ -192,5 +192,9 @@ export function locationBody(ctx: IExecuteFunctions, itemIndex: number): IDataOb
   if (location.latitude === undefined && location.longitude === undefined) {
     return undefined;
   }
+  // An accuracy of 0 m is the untouched default, not a measurement.
+  if (location.accuracy_m === 0) {
+    delete location.accuracy_m;
+  }
   return location;
 }
