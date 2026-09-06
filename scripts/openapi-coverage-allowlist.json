@@ -20,9 +20,6 @@
     "PUT /api/v1/checkins/images": "Photograph consent. Follow-up: tracker issue 4.",
     "POST /api/v1/checkins/profile/photo": "Photographs are a presigned-upload flow (mint, PUT the bytes, confirm); needs a binary-data design before the node grows it.",
     "POST /api/v1/checkins/profile/photo/{id}/confirm": "Photographs are a presigned-upload flow; see POST /api/v1/checkins/profile/photo.",
-    "DELETE /api/v1/checkins/profile/photo/{id}": "Photographs are a presigned-upload flow; see POST /api/v1/checkins/profile/photo.",
-    "GET /api/v1/incidents/{id}/search": "The search panel for a missed check-in. Follow-up: tracker issue 3.",
-    "POST /api/v1/incidents/{id}/search/locate": "Asks the subject's device for a fresh fix. Follow-up: tracker issue 3.",
-    "POST /api/v1/incidents/{id}/search/beacon": "Lights the subject's torch and sounds their phone. Follow-up: tracker issue 3."
+    "DELETE /api/v1/checkins/profile/photo/{id}": "Photographs are a presigned-upload flow; see POST /api/v1/checkins/profile/photo."
   }
 }
