@@ -198,3 +198,59 @@ export function locationBody(ctx: IExecuteFunctions, itemIndex: number): IDataOb
   }
   return location;
 }
+
+/**
+ * The search-description fields: what a person said they were wearing and
+ * where they said they were going. `PUT /checkins/:id/details` takes them as
+ * a deliberate write (blank clears, unconsented refuses); the four transitions
+ * take the same fields as an optional `details` object the server drops
+ * rather than refuses.
+ */
+export function detailsCollection(
+  resource: string,
+  operations: string[],
+  extra: Partial<INodeProperties> = {},
+): INodeProperties {
+  return {
+    displayName: 'Details',
+    name: 'details',
+    type: 'collection',
+    placeholder: 'Add Field',
+    default: {},
+    description:
+      'Optional search description written with this transition. Stored only when the responder has opted in to details; never fails the transition.',
+    displayOptions: show(resource, operations),
+    options: [
+      { displayName: 'Destination', name: 'destination_text', type: 'string', default: '' },
+      {
+        displayName: 'Destination Latitude',
+        name: 'destination_latitude',
+        type: 'number',
+        default: 0,
+      },
+      {
+        displayName: 'Destination Longitude',
+        name: 'destination_longitude',
+        type: 'number',
+        default: 0,
+      },
+      { displayName: 'Origin', name: 'origin_text', type: 'string', default: '' },
+      { displayName: 'Origin Latitude', name: 'origin_latitude', type: 'number', default: 0 },
+      { displayName: 'Origin Longitude', name: 'origin_longitude', type: 'number', default: 0 },
+      {
+        displayName: 'Wearing',
+        name: 'wearing',
+        type: 'string',
+        default: '',
+        description: 'Clothing and kit, up to 500 characters',
+      },
+    ],
+    ...extra,
+  };
+}
+
+/** The `details` object for a transition, or nothing when the user typed nothing. */
+export function detailsBody(ctx: IExecuteFunctions, itemIndex: number): IDataObject | undefined {
+  const details = compact(ctx.getNodeParameter('details', itemIndex, {}) as IDataObject);
+  return Object.keys(details).length > 0 ? details : undefined;
+}

@@ -4,6 +4,8 @@ import {
   ResourceModule,
   asInteger,
   compact,
+  detailsBody,
+  detailsCollection,
   locationBody,
   locationCollection,
   show,
@@ -68,6 +70,13 @@ const properties: INodeProperties[] = [
         action: 'Get the code status',
       },
       {
+        name: 'Get Details Opt-In',
+        value: 'getDetailsOptIn',
+        description:
+          'Whether this responder has consented to storing a search description (what they are wearing, where they are going, their vehicle)',
+        action: 'Get the details opt-in',
+      },
+      {
         name: 'Get Location Opt-In',
         value: 'getLocationOptIn',
         description: 'Whether this responder shares position with check-ins',
@@ -76,8 +85,16 @@ const properties: INodeProperties[] = [
       {
         name: 'Get Many',
         value: 'getAll',
-        description: "List this responder's check-ins",
+        description:
+          "List this responder's check-ins. Each carries a details object (wearing, origin, destination) or null when nothing has been said.",
         action: 'Get many check-ins',
+      },
+      {
+        name: 'Get Profile',
+        value: 'getProfile',
+        description:
+          "This responder's reusable search description (their vehicle); null when nothing has been entered",
+        action: 'Get the search profile',
       },
       {
         name: 'Satisfy',
@@ -92,9 +109,29 @@ const properties: INodeProperties[] = [
         action: 'Set the check-in code',
       },
       {
+        name: 'Set Details',
+        value: 'setDetails',
+        description:
+          'What this person is wearing and where they said they were going, on one check-in. Refused with 409 until the responder has opted in to details.',
+        action: 'Set the details of a check-in',
+      },
+      {
+        name: 'Set Details Opt-In',
+        value: 'setDetailsOptIn',
+        description: 'Opting out deletes the profile and every stored description',
+        action: 'Set the details opt-in',
+      },
+      {
         name: 'Set Location Opt-In',
         value: 'setLocationOptIn',
         action: 'Set the location opt-in',
+      },
+      {
+        name: 'Set Profile',
+        value: 'setProfile',
+        description:
+          'The reusable vehicle description. Refused with 409 until the responder has opted in to details.',
+        action: 'Set the search profile',
       },
       {
         name: 'Set Require Code',
@@ -107,7 +144,7 @@ const properties: INodeProperties[] = [
   },
   stringParam(
     RESOURCE,
-    ['update', 'delete', 'setRequireCode', ...TRANSITIONS],
+    ['update', 'delete', 'setRequireCode', 'setDetails', ...TRANSITIONS],
     'checkinId',
     'Check-In ID',
     'UUID of the check-in',
@@ -232,6 +269,41 @@ const properties: INodeProperties[] = [
     description: 'The check-in code, when this check-in requires one',
   },
   locationCollection(RESOURCE, TRANSITIONS),
+  detailsCollection(RESOURCE, TRANSITIONS),
+  detailsCollection(RESOURCE, ['setDetails'], {
+    displayName: 'Details',
+    description:
+      'Fields to write. A field left blank clears it. Coordinates are stored only when the responder has also opted in to location; otherwise they come back null.',
+  }),
+  {
+    displayName: 'Profile',
+    name: 'profile',
+    type: 'collection',
+    placeholder: 'Add Field',
+    default: {},
+    displayOptions: show(RESOURCE, ['setProfile']),
+    description:
+      'Vehicle fields to write. A text field left blank clears it; a year of 0 clears the year.',
+    options: [
+      { displayName: 'Colour', name: 'vehicle_colour', type: 'string', default: '' },
+      { displayName: 'Make', name: 'vehicle_make', type: 'string', default: '' },
+      { displayName: 'Model', name: 'vehicle_model', type: 'string', default: '' },
+      {
+        displayName: 'Plate',
+        name: 'vehicle_plate',
+        type: 'string',
+        default: '',
+        description: 'Encrypted at rest; nothing can search on it',
+      },
+      {
+        displayName: 'Year',
+        name: 'vehicle_year',
+        type: 'number',
+        default: 0,
+        description: 'Model year, 1900-2200. 0 clears.',
+      },
+    ],
+  },
   {
     displayName: 'Require Code',
     name: 'requireCode',
@@ -267,15 +339,22 @@ const properties: INodeProperties[] = [
     displayOptions: show(RESOURCE, ['setLocationOptIn']),
     description: 'Whether to share position with check-in transitions',
   },
+  {
+    displayName: 'Opt In',
+    name: 'detailsOptIn',
+    type: 'boolean',
+    default: true,
+    displayOptions: show(RESOURCE, ['setDetailsOptIn']),
+    description:
+      'Whether to store a search description. Turning it off deletes the profile, every check-in description, and the snapshots on closed incidents.',
+  },
 ];
 
-function withLocation(
-  ctx: Parameters<typeof locationBody>[0],
-  itemIndex: number,
-  body: IDataObject,
-) {
+/** Attach the optional `location` and `details` objects a transition accepts. */
+function withExtras(ctx: Parameters<typeof locationBody>[0], itemIndex: number, body: IDataObject) {
   const location = locationBody(ctx, itemIndex);
-  return location ? { ...body, location } : body;
+  const details = detailsBody(ctx, itemIndex);
+  return { ...body, ...(location ? { location } : {}), ...(details ? { details } : {}) };
 }
 
 export const checkinResource: ResourceModule = {
@@ -334,7 +413,7 @@ export const checkinResource: ResourceModule = {
     },
     async arm(itemIndex, client) {
       const id = this.getNodeParameter('checkinId', itemIndex) as string;
-      const body = withLocation(
+      const body = withExtras(
         this,
         itemIndex,
         compact({ deadline_at: this.getNodeParameter('deadlineAt', itemIndex, '') }),
@@ -346,7 +425,7 @@ export const checkinResource: ResourceModule = {
     },
     async extend(itemIndex, client) {
       const id = this.getNodeParameter('checkinId', itemIndex) as string;
-      const body = withLocation(
+      const body = withExtras(
         this,
         itemIndex,
         compact({
@@ -366,7 +445,7 @@ export const checkinResource: ResourceModule = {
     },
     async satisfy(itemIndex, client) {
       const id = this.getNodeParameter('checkinId', itemIndex) as string;
-      const body = withLocation(
+      const body = withExtras(
         this,
         itemIndex,
         compact({ code: this.getNodeParameter('code', itemIndex, '') }),
@@ -378,7 +457,7 @@ export const checkinResource: ResourceModule = {
     },
     async cancel(itemIndex, client) {
       const id = this.getNodeParameter('checkinId', itemIndex) as string;
-      const body = withLocation(
+      const body = withExtras(
         this,
         itemIndex,
         compact({ code: this.getNodeParameter('code', itemIndex, '') }),
@@ -418,6 +497,37 @@ export const checkinResource: ResourceModule = {
     async setLocationOptIn(itemIndex, client) {
       const body = { opt_in: this.getNodeParameter('optIn', itemIndex) as boolean };
       return client.request('PUT', '/api/v1/checkins/location', { body });
+    },
+    async getDetailsOptIn(_itemIndex, client) {
+      return client.request('GET', '/api/v1/checkins/details');
+    },
+    async setDetailsOptIn(itemIndex, client) {
+      const body = { opt_in: this.getNodeParameter('detailsOptIn', itemIndex) as boolean };
+      return client.request('PUT', '/api/v1/checkins/details', { body });
+    },
+    async getProfile(_itemIndex, client) {
+      // `{ profile: null }` when nothing has been entered; keep the wrapper so
+      // the null survives as an item.
+      return client.request('GET', '/api/v1/checkins/profile');
+    },
+    async setProfile(itemIndex, client) {
+      // Only the fields the user added are present. A blank string clears a
+      // text field on the server, so blanks are sent rather than dropped.
+      const body = { ...(this.getNodeParameter('profile', itemIndex, {}) as IDataObject) };
+      if ('vehicle_year' in body) {
+        const year = asInteger(this, itemIndex, body.vehicle_year, 'Year');
+        body.vehicle_year = year ? year : null;
+      }
+      return client.request('PUT', '/api/v1/checkins/profile', { body });
+    },
+    async setDetails(itemIndex, client) {
+      const id = this.getNodeParameter('checkinId', itemIndex) as string;
+      // As for the profile: blanks clear, so the collection is sent as typed.
+      const body = this.getNodeParameter('details', itemIndex, {}) as IDataObject;
+      return unwrap(
+        await client.request('PUT', `/api/v1/checkins/${id}/details`, { body }),
+        'details',
+      );
     },
   },
 };
