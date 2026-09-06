@@ -141,7 +141,7 @@ enabled.
 
 | Operation | Notes |
 |---|---|
-| Get Many | |
+| Get Many | Each check-in carries a `details` object (wearing, origin, destination) or `null`. |
 | Create | Label, kind (`timer` or `daily`; daily needs time zone and local time), optional reminder lead seconds and escalation schedule ID. New check-ins are idle. |
 | Update | Label, reminder lead, time zone, local time, escalation schedule ID (`none` clears). Kind cannot change. |
 | Delete | |
@@ -151,10 +151,15 @@ enabled.
 | Set Require Code | Boolean. |
 | Get Code Status / Set Code / Clear Code / Clear Duress Code | Codes are 6-12 digits. |
 | Get Location Opt-In / Set Location Opt-In | Whether positions are stored with transitions. |
+| Get Details Opt-In / Set Details Opt-In | Whether a search description is stored. Opting out deletes the profile and every stored description. |
+| Get Profile / Set Profile | The reusable vehicle description (make, model, colour, year, plate). A blank text field clears it; a year of 0 clears the year. Set is refused with `409 consent_missing` until the responder opts in. |
+| Set Details | Check-in ID plus wearing, origin, destination (text and/or coordinates) for one check-in. Blanks clear. Refused with `409 consent_missing` until the responder opts in; coordinates are dropped (returned `null`) unless location is also opted in. |
 
 Arm, Extend, Satisfy and Cancel accept an optional **Location** (latitude,
-longitude, accuracy, fix time). The server stores it only if the responder has
-opted in, and never reports whether it did.
+longitude, accuracy, fix time) and an optional **Details** object with the same
+fields as Set Details. The server stores either only if the responder has
+opted in, never fails the transition over them, and never reports whether it
+kept them. Read the check-in back to see what it holds.
 
 ## AlertRoster Trigger node
 
