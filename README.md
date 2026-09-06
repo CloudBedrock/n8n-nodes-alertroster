@@ -89,6 +89,14 @@ Returns `{ status: "accepted", alert_id, dedup_key }`. Ingest is asynchronous.
 | Get | By ID, open or closed. |
 | Acknowledge / Resolve / Reassign | As this responder. |
 | Silence | Stops the noise for 90 seconds (fixed server-side) without acknowledging. Only on `triggered` incidents. |
+| Get Search | The search panel for a missed check-in: `positions` (the trail, newest first, each with `fix_at` and `captured_at`), `commands`, `locate` and `beacon` availability with a `reason` when not, and `subject` (the frozen `stated` description plus the live `profile`, or `null`). On an incident not raised by a check-in the panel is empty and both capabilities report `not_a_checkin_incident`. |
+| Locate | Asks the subject's device for a fresh position. Returns the queued `command` (202); poll Get Search or Get for the fix. |
+| Beacon | Mode `steady`, `strobe` or `off`. Lights the subject's torch for 900 seconds; send again to keep it going. Returns the queued `command`. On a duress incident the request is refused with `409 duress_confirmation_required` unless **Confirm Duress** is on; `off` needs no consent. |
+
+Get Search, Locate and Beacon need the subject's consent (`409 consent_missing`)
+and an open incident (`409 incident_closed`). Photo URLs in `subject.profile`
+are presigned and expire in minutes; every photograph carries `taken_at` and
+`age_days`, and anything that shows the image should show its age.
 
 ### User
 

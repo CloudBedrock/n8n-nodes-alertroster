@@ -20,6 +20,13 @@ const properties: INodeProperties[] = [
         action: 'Acknowledge an incident',
       },
       {
+        name: 'Beacon',
+        value: 'beacon',
+        description:
+          "Light the torch and sound the phone of the person a missed check-in is about. Burns for 900 seconds; send again to keep it going, or mode 'off' to stop it.",
+        action: 'Set the beacon on an incident',
+      },
+      {
         name: 'Get',
         value: 'get',
         description: 'Read an incident, open or closed',
@@ -30,6 +37,20 @@ const properties: INodeProperties[] = [
         value: 'getAll',
         description: 'List the open incidents in the account, newest first',
         action: 'Get many incidents',
+      },
+      {
+        name: 'Get Search',
+        value: 'getSearch',
+        description:
+          'The search panel for a missed check-in: the position trail, device commands, whether locate and beacon are available, and who the roster is looking for',
+        action: 'Get the search panel of an incident',
+      },
+      {
+        name: 'Locate',
+        value: 'locate',
+        description:
+          'Ask the device of the person a missed check-in is about for a fresh position. Answers 202 with the queued command; the fix arrives on the incident later.',
+        action: 'Locate the subject of an incident',
       },
       {
         name: 'Reassign',
@@ -53,7 +74,7 @@ const properties: INodeProperties[] = [
   },
   stringParam(
     RESOURCE,
-    ['get', 'acknowledge', 'resolve', 'reassign', 'silence'],
+    ['get', 'acknowledge', 'resolve', 'reassign', 'silence', 'getSearch', 'locate', 'beacon'],
     'incidentId',
     'Incident ID',
     'UUID of the incident',
@@ -65,6 +86,28 @@ const properties: INodeProperties[] = [
     'User ID',
     'UUID of the responder to hand the incident to',
   ),
+  {
+    displayName: 'Mode',
+    name: 'mode',
+    type: 'options',
+    default: 'strobe',
+    required: true,
+    displayOptions: show(RESOURCE, ['beacon']),
+    options: [
+      { name: 'Off', value: 'off', description: 'Put the light out. Never refused for consent.' },
+      { name: 'Steady', value: 'steady' },
+      { name: 'Strobe', value: 'strobe' },
+    ],
+  },
+  {
+    displayName: 'Confirm Duress',
+    name: 'confirmDuress',
+    type: 'boolean',
+    default: false,
+    displayOptions: show(RESOURCE, ['beacon']),
+    description:
+      'Whether to light the beacon even though the incident was raised under duress. Refused with 409 duress_confirmation_required otherwise: a lit phone can put a coerced person in more danger. The override is recorded on the incident timeline.',
+  },
 ];
 
 export const responderIncidentResource: ResourceModule = {
@@ -101,6 +144,33 @@ export const responderIncidentResource: ResourceModule = {
     async silence(itemIndex, client) {
       const id = this.getNodeParameter('incidentId', itemIndex) as string;
       return unwrap(await client.request('POST', `/api/v1/incidents/${id}/silence`), 'incident');
+    },
+    // The search routes apply to an incident a missed check-in raised. On any
+    // other incident the panel is empty and both capabilities report
+    // `not_a_checkin_incident`; the commands are refused with 409.
+    async getSearch(itemIndex, client) {
+      const id = this.getNodeParameter('incidentId', itemIndex) as string;
+      return unwrap(await client.request('GET', `/api/v1/incidents/${id}/search`), 'search');
+    },
+    async locate(itemIndex, client) {
+      const id = this.getNodeParameter('incidentId', itemIndex) as string;
+      return unwrap(
+        await client.request('POST', `/api/v1/incidents/${id}/search/locate`),
+        'command',
+      );
+    },
+    async beacon(itemIndex, client) {
+      const id = this.getNodeParameter('incidentId', itemIndex) as string;
+      // Only a literal `true` confirms on the server, so the boolean is sent
+      // as is rather than through `compact`.
+      const body = {
+        mode: this.getNodeParameter('mode', itemIndex) as string,
+        confirm_duress: this.getNodeParameter('confirmDuress', itemIndex, false) === true,
+      };
+      return unwrap(
+        await client.request('POST', `/api/v1/incidents/${id}/search/beacon`, { body }),
+        'command',
+      );
     },
   },
 };
