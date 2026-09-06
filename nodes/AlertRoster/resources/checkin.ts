@@ -64,6 +64,13 @@ const properties: INodeProperties[] = [
         action: 'Extend a check-in',
       },
       {
+        name: 'Get Beacon Opt-In',
+        value: 'getBeaconOptIn',
+        description:
+          "Whether this responder lets a searcher light their phone's torch during an activation",
+        action: 'Get the beacon opt-in',
+      },
+      {
         name: 'Get Code Status',
         value: 'getCodeStatus',
         description: 'Whether a check-in code and a duress code are set',
@@ -75,6 +82,12 @@ const properties: INodeProperties[] = [
         description:
           'Whether this responder has consented to storing a search description (what they are wearing, where they are going, their vehicle)',
         action: 'Get the details opt-in',
+      },
+      {
+        name: 'Get Images Opt-In',
+        value: 'getImagesOptIn',
+        description: 'Whether this responder has consented to storing photographs',
+        action: 'Get the images opt-in',
       },
       {
         name: 'Get Location Opt-In',
@@ -103,6 +116,12 @@ const properties: INodeProperties[] = [
         action: 'Satisfy a check-in',
       },
       {
+        name: 'Set Beacon Opt-In',
+        value: 'setBeaconOptIn',
+        description: 'Opting out expires every live command and puts out a beacon that is burning',
+        action: 'Set the beacon opt-in',
+      },
+      {
         name: 'Set Code',
         value: 'setCode',
         description: 'Set the check-in code and optionally a duress code (6-12 digits)',
@@ -120,6 +139,12 @@ const properties: INodeProperties[] = [
         value: 'setDetailsOptIn',
         description: 'Opting out deletes the profile and every stored description',
         action: 'Set the details opt-in',
+      },
+      {
+        name: 'Set Images Opt-In',
+        value: 'setImagesOptIn',
+        description: 'Opting out deletes every stored photograph',
+        action: 'Set the images opt-in',
       },
       {
         name: 'Set Location Opt-In',
@@ -348,6 +373,24 @@ const properties: INodeProperties[] = [
     description:
       'Whether to store a search description. Turning it off deletes the profile, every check-in description, and the snapshots on closed incidents.',
   },
+  {
+    displayName: 'Opt In',
+    name: 'beaconOptIn',
+    type: 'boolean',
+    default: true,
+    displayOptions: show(RESOURCE, ['setBeaconOptIn']),
+    description:
+      "Whether a searcher may light this responder's torch and sound their phone during an activation. Turning it off expires every live command and puts out a beacon that is burning.",
+  },
+  {
+    displayName: 'Opt In',
+    name: 'imagesOptIn',
+    type: 'boolean',
+    default: true,
+    displayOptions: show(RESOURCE, ['setImagesOptIn']),
+    description:
+      'Whether to store photographs of this responder and their vehicle. Turning it off deletes every photograph, even during an open incident.',
+  },
 ];
 
 /** Attach the optional `location` and `details` objects a transition accepts. */
@@ -504,6 +547,20 @@ export const checkinResource: ResourceModule = {
     async setDetailsOptIn(itemIndex, client) {
       const body = { opt_in: this.getNodeParameter('detailsOptIn', itemIndex) as boolean };
       return client.request('PUT', '/api/v1/checkins/details', { body });
+    },
+    async getBeaconOptIn(_itemIndex, client) {
+      return client.request('GET', '/api/v1/checkins/beacon');
+    },
+    async setBeaconOptIn(itemIndex, client) {
+      const body = { opt_in: this.getNodeParameter('beaconOptIn', itemIndex) as boolean };
+      return client.request('PUT', '/api/v1/checkins/beacon', { body });
+    },
+    async getImagesOptIn(_itemIndex, client) {
+      return client.request('GET', '/api/v1/checkins/images');
+    },
+    async setImagesOptIn(itemIndex, client) {
+      const body = { opt_in: this.getNodeParameter('imagesOptIn', itemIndex) as boolean };
+      return client.request('PUT', '/api/v1/checkins/images', { body });
     },
     async getProfile(_itemIndex, client) {
       // `{ profile: null }` when nothing has been entered; keep the wrapper so

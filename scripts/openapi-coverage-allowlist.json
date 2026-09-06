@@ -14,10 +14,6 @@
     "DELETE /api/v1/users/me": "Account deletion is irreversible and out of scope for v0.1 (design spec).",
     "GET /api/v1/checkins/commands": "The device half of search support: a phone polls for locate/beacon commands. Not a workflow surface.",
     "POST /api/v1/checkins/commands/{id}/ack": "The device half of search support: a phone reports what it did with a command. Not a workflow surface.",
-    "GET /api/v1/checkins/beacon": "Beacon consent (torch and siren on the subject's phone). Follow-up: tracker issue 4.",
-    "PUT /api/v1/checkins/beacon": "Beacon consent (torch and siren on the subject's phone). Follow-up: tracker issue 4.",
-    "GET /api/v1/checkins/images": "Photograph consent. Follow-up: tracker issue 4.",
-    "PUT /api/v1/checkins/images": "Photograph consent. Follow-up: tracker issue 4.",
     "POST /api/v1/checkins/profile/photo": "Photographs are a presigned-upload flow (mint, PUT the bytes, confirm); needs a binary-data design before the node grows it.",
     "POST /api/v1/checkins/profile/photo/{id}/confirm": "Photographs are a presigned-upload flow; see POST /api/v1/checkins/profile/photo.",
     "DELETE /api/v1/checkins/profile/photo/{id}": "Photographs are a presigned-upload flow; see POST /api/v1/checkins/profile/photo."

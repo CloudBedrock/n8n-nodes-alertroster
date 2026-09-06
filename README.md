@@ -160,6 +160,8 @@ enabled.
 | Get Code Status / Set Code / Clear Code / Clear Duress Code | Codes are 6-12 digits. |
 | Get Location Opt-In / Set Location Opt-In | Whether positions are stored with transitions. |
 | Get Details Opt-In / Set Details Opt-In | Whether a search description is stored. Opting out deletes the profile and every stored description. |
+| Get Beacon Opt-In / Set Beacon Opt-In | Whether a searcher may light this responder's torch and sound their phone during an activation (Responder Incident: Beacon). Separate from location. Opting out expires every live command and puts out a burning beacon. |
+| Get Images Opt-In / Set Images Opt-In | Whether photographs are stored. Opting out deletes every photograph, with no open-incident exception. The upload flow itself is not in the node. |
 | Get Profile / Set Profile | The reusable vehicle description (make, model, colour, year, plate). A blank text field clears it; a year of 0 clears the year. Set is refused with `409 consent_missing` until the responder opts in. |
 | Set Details | Check-in ID plus wearing, origin, destination (text and/or coordinates) for one check-in. Blanks clear. Refused with `409 consent_missing` until the responder opts in; coordinates are dropped (returned `null`) unless location is also opted in. |
 
