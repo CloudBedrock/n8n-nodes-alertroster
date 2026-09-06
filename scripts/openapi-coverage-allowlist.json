@@ -1,0 +1,28 @@
+{
+  "$comment": "Operations in the AlertRoster OpenAPI document that this node deliberately does not implement. Each needs a reason; scripts/check-openapi-coverage.mjs fails when an entry here is implemented or leaves the spec, so this list is also the tracked backlog of server surface the node lacks.",
+  "notImplemented": {
+    "POST /api/v1/auth/refresh": "Refresh tokens are unused on purpose: the server revokes the token family on reuse and concurrent executions share one cached session (utils/ResponderSession.ts).",
+    "DELETE /api/v1/auth/logout": "The responder session is cached across executions and expires on its own; revoking it from one workflow would log out every other.",
+    "POST /api/v1/auth/request_link": "Magic-link login is for a person at a browser, not a credential a workflow holds.",
+    "POST /api/v1/devices": "Push registration is for phones and desktops; out of scope for v0.1 (design spec).",
+    "DELETE /api/v1/devices/{device_identifier}": "Push registration is for phones and desktops; out of scope for v0.1 (design spec).",
+    "GET /api/v1/receivers": "Receivers (hardware pagers) are out of scope for v0.1 (design spec).",
+    "POST /api/v1/receivers": "Receivers (hardware pagers) are out of scope for v0.1 (design spec).",
+    "GET /api/v1/receivers/catalogue": "Receivers (hardware pagers) are out of scope for v0.1 (design spec).",
+    "POST /api/v1/receivers/enroll": "Spends a claim for a client certificate; a device-side step, not a workflow one.",
+    "DELETE /api/v1/receivers/{id}": "Receivers (hardware pagers) are out of scope for v0.1 (design spec).",
+    "DELETE /api/v1/users/me": "Account deletion is irreversible and out of scope for v0.1 (design spec).",
+    "GET /api/v1/checkins/commands": "The device half of search support: a phone polls for locate/beacon commands. Not a workflow surface.",
+    "POST /api/v1/checkins/commands/{id}/ack": "The device half of search support: a phone reports what it did with a command. Not a workflow surface.",
+    "GET /api/v1/checkins/beacon": "Beacon consent (torch and siren on the subject's phone). Follow-up: tracker issue 4.",
+    "PUT /api/v1/checkins/beacon": "Beacon consent (torch and siren on the subject's phone). Follow-up: tracker issue 4.",
+    "GET /api/v1/checkins/images": "Photograph consent. Follow-up: tracker issue 4.",
+    "PUT /api/v1/checkins/images": "Photograph consent. Follow-up: tracker issue 4.",
+    "POST /api/v1/checkins/profile/photo": "Photographs are a presigned-upload flow (mint, PUT the bytes, confirm); needs a binary-data design before the node grows it.",
+    "POST /api/v1/checkins/profile/photo/{id}/confirm": "Photographs are a presigned-upload flow; see POST /api/v1/checkins/profile/photo.",
+    "DELETE /api/v1/checkins/profile/photo/{id}": "Photographs are a presigned-upload flow; see POST /api/v1/checkins/profile/photo.",
+    "GET /api/v1/incidents/{id}/search": "The search panel for a missed check-in. Follow-up: tracker issue 3.",
+    "POST /api/v1/incidents/{id}/search/locate": "Asks the subject's device for a fresh fix. Follow-up: tracker issue 3.",
+    "POST /api/v1/incidents/{id}/search/beacon": "Lights the subject's torch and sounds their phone. Follow-up: tracker issue 3."
+  }
+}

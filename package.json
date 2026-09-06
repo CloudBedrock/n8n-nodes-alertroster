@@ -32,6 +32,7 @@
     "format": "prettier nodes credentials utils --write",
     "lint": "eslint nodes/**/*.ts credentials/**/*.ts utils/**/*.ts --ext .ts",
     "lintfix": "eslint nodes/**/*.ts credentials/**/*.ts utils/**/*.ts --ext .ts --fix",
+    "check:coverage": "node scripts/check-openapi-coverage.mjs",
     "prepublishOnly": "npm run build"
   },
   "files": [

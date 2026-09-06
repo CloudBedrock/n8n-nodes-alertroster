@@ -180,11 +180,19 @@ node; one request per poll plus one per incident that closed.
 ## Development
 
 ```sh
-npm install
-npm run build     # tsc + icon copy into dist/
+npm install --ignore-scripts   # isolated-vm (via n8n-workflow) need not build
+npm run build                  # tsc + icon copy into dist/
 npm run lint
-npm run dev       # tsc --watch
+npm run check:coverage         # routes called vs the published OpenAPI spec
+npm run dev                    # tsc --watch
 ```
+
+`check:coverage` fetches AlertRoster's OpenAPI document and fails when the
+API has an operation this node neither implements nor excuses in
+`scripts/openapi-coverage-allowlist.json`, or when the node calls a route the
+API no longer documents. The allowlist is the list of server surface the node
+deliberately lacks, each entry with its reason. CI (`.github/workflows/ci.yml`)
+runs build, lint and this check on every push and pull request.
 
 To try it locally, link the package into your n8n custom directory:
 

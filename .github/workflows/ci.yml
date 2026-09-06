@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      # --ignore-scripts: n8n-workflow pulls in isolated-vm, whose native build
+      # is not needed to compile or lint this package.
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npm run lint
+      # Fails when the published AlertRoster API has an operation this node
+      # neither implements nor excuses in scripts/openapi-coverage-allowlist.json,
+      # or when the node calls a route the API no longer documents.
+      - run: npm run check:coverage
