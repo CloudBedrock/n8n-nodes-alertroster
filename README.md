@@ -81,6 +81,33 @@ Returns `{ status: "accepted", alert_id, dedup_key }`. Ingest is asynchronous.
 | Acknowledge / Resolve | By incident ID. |
 | Reassign | Incident ID and responder user ID. |
 
+#### Who holds an incident, and who is being asked
+
+Every incident the node returns (Incident, Responder Incident, and the
+trigger) carries `assigned_to_user_id` and `paged_user_ids`, and they answer
+different questions. `assigned_to_user_id` is who holds the incident now. On a
+source that escalates to a schedule it is set at trigger to whoever is on call,
+set again on every escalation, and moved by Reassign. `paged_user_ids` is who is
+being asked right now: everybody the current escalation-policy rung woke, in the
+order the rung names them. It is `[]` on every incident that is not on a policy
+rung, and Acknowledge, Reassign and Resolve all empty it.
+
+A null `assigned_to_user_id` is not on its own a broadcast to the whole account.
+Read the pair together:
+
+| `assigned_to_user_id` | `paged_user_ids` | Meaning |
+|---|---|---|
+| set | `[]` | The on-call responder from the source's schedule holds it. |
+| `null` | non-empty | An escalation policy rung is waiting on those responders. Nobody holds the incident until one of them acknowledges. |
+| `null` | `[]` | Either the incident is inside its local grace (`escalate_at` is in the future and nobody off-site has been paged yet), or the source names no schedule or nobody is on call, and every responder in the account was paged. |
+
+Two related fields are easy to misread. `acknowledged_by_user_id` is history,
+never overwritten, and stays `null` when the Incident resource acknowledged
+over an integration key, because no responder did it; take "acknowledged" from
+`status`. A policy rung firing changes `paged_user_ids` and `escalation_rule_position`
+but not `status`, so the trigger does not fire for it; poll Get if a workflow
+needs to follow the ladder.
+
 ### Responder Incident
 
 | Operation | Notes |

@@ -16,6 +16,14 @@
     "POST /api/v1/checkins/commands/{id}/ack": "The device half of search support: a phone reports what it did with a command. Not a workflow surface.",
     "POST /api/v1/checkins/profile/photo": "Photographs are a presigned-upload flow (mint, PUT the bytes, confirm); needs a binary-data design before the node grows it.",
     "POST /api/v1/checkins/profile/photo/{id}/confirm": "Photographs are a presigned-upload flow; see POST /api/v1/checkins/profile/photo.",
-    "DELETE /api/v1/checkins/profile/photo/{id}": "Photographs are a presigned-upload flow; see POST /api/v1/checkins/profile/photo."
+    "DELETE /api/v1/checkins/profile/photo/{id}": "Photographs are a presigned-upload flow; see POST /api/v1/checkins/profile/photo.",
+    "PUT /api/v1/checkins/duress_code": "A person proves who they are by typing their own code; a secret a workflow would have to hold. The device half of duress, not a workflow surface.",
+    "POST /api/v1/checkins/{id}/positions": "The device half of search support: a phone streams its own fixes during an armed window. Not a workflow surface.",
+    "GET /api/v1/checkins/fallback": "App configuration for text or phone check-in when data is gone. A client-side concern, not a workflow one.",
+    "GET /api/v1/checkins/{id}/briefing": "Pre-departure briefing for a check-in's stated destination. Landed on the server after node 0.2.0; candidate for a Check-In operation, not yet assessed.",
+    "GET /api/v1/incidents/{id}/context": "Live conditions at a missing person's stated destination. Landed on the server after node 0.2.0; candidate for a Responder Incident operation alongside Get Search, not yet assessed.",
+    "GET /api/v1/incidents/{id}/report": "Responder report link (read). Landed on the server after node 0.2.0; the response of the POST is a credential, so the three report routes need a handling decision before the node grows them.",
+    "POST /api/v1/incidents/{id}/report": "Responder report link (mint). See GET /api/v1/incidents/{id}/report.",
+    "DELETE /api/v1/incidents/{id}/report": "Responder report link (withdraw). See GET /api/v1/incidents/{id}/report."
   }
 }
