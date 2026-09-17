@@ -230,9 +230,9 @@ using the Responder credential. Pick the events to watch:
 | Event | Fires when |
 |---|---|
 | Incident Triggered | A new incident appears in the open list |
-| Incident Acknowledged | An open incident moves to `acknowledged` |
-| Incident Escalated | The ack window ran out with nobody answering: `escalation_rule_position` or `escalation_repeat_count` moved (the next rung of an escalation policy fired, `paged_user_ids` names who it woke), or `escalate_at` moved forward on a source with no policy |
-| Incident Reassigned | `assigned_to_user_id` changed on an open incident, other than by the acknowledgement that claims it or by an escalation |
+| Incident Acknowledged | An open incident moves to `acknowledged`, or a reassigned incident that was already acknowledged is claimed by its new holder (the live `escalate_at` clears) |
+| Incident Escalated | The ack window ran out with nobody answering: `escalation_rule_position` or `escalation_repeat_count` moved (the next rung of an escalation policy fired and `paged_user_ids` names who it woke, or a schedule source paged again), or a local grace ended and `escalate_at` moved on past the window the node last saw |
+| Incident Reassigned | `assigned_to_user_id` or `assigned_at` changed on an open incident before its ack window ran out, other than by the acknowledgement that claims it. Handing an incident back to the responder who already holds it counts. |
 | Incident Silenced | `silenced_until` was set to a time still ahead; a second silence that overwrites a running one fires again |
 | Incident Unsilenced | A silence ran out on a still-`triggered` incident with nobody having answered |
 | Incident Resolved | An incident leaves the open list; the node fetches it by ID and reports its final status (`resolved`, `auto_resolved`, or `expired`) |
@@ -242,21 +242,26 @@ Resolved are read off the fields of the open list between two polls, so a
 transition that happens and is undone inside one interval (a silence that
 lapses, a reassignment that is acknowledged) is reported as whatever the
 incident looks like at the next poll, and one poll can emit several events
-for one incident (a reassignment and a silence together). On first activation
-the node records what is already open and emits nothing. A manual test run
-shows the current open incidents as samples without changing that state. Set
-the poll interval in the node; one request per poll plus one per incident that
-closed.
+for one incident (a reassignment and a silence together). Escalation versus
+reassignment is decided by the clock: a moved ack window whose previous
+deadline had already passed is an escalation, one moved before its deadline is
+a reassignment. On first activation the node records what is already open and
+emits nothing. A manual test run shows the current open incidents as Triggered
+or Acknowledged samples, subject to the event selection, without changing
+that state. Set the poll interval in the node; one request per poll plus one
+per incident that closed.
 
 **Duress.** Every incident carries `duress`, `true` when a check-in was
-satisfied with the duress code: the person is signalling under coercion, the
-phones stay silent, and a workflow should branch on it before anything else
-(no broadcast, no call back to the subject). Turn on **Duress Only** to make a
-trigger fire for those incidents alone.
+satisfied with the duress code: the person is signalling under coercion. The
+incident is paged to the rest of the roster as any other, but it is withheld
+from the subject's own devices and list, so a trigger running on the subject's
+own responder credential never sees it. A workflow should branch on `duress`
+before anything else (no call back to the subject). Turn on **Duress Only** to
+make a trigger fire for those incidents alone.
 
-Upgrading from a release before 0.3.0: the first poll after the upgrade names
-only status transitions for incidents that were already open, then carries the
-full snapshot from there.
+Upgrading from a release before these events existed: the first poll after
+the upgrade names only status transitions for incidents that were already
+open, then carries the full snapshot from there.
 
 ## Development
 

@@ -17,6 +17,7 @@ interface Incident extends IDataObject {
   id: string;
   status: Status;
   assigned_to_user_id?: string | null;
+  assigned_at?: string | null;
   escalation_rule_position?: number;
   escalation_repeat_count?: number;
   escalate_at?: string | null;
@@ -28,19 +29,21 @@ interface Incident extends IDataObject {
 interface Snapshot {
   status: Status;
   assignedTo: string | null;
+  assignedAt: string | null;
   rulePosition: number;
   repeatCount: number;
   escalateAt: string | null;
   silencedUntil: string | null;
-  /** `silenced_until` was still in the future when this snapshot was taken. */
+  /** `silenced_until` was still ahead, on a `triggered` incident, when this snapshot was taken. */
   quiet: boolean;
 }
 
 interface PollState {
   /**
-   * Open incidents seen on the last poll, by id. Releases before 0.3.0 stored
-   * the bare status string; such an entry is read as a status-only snapshot
-   * for one poll and upgraded.
+   * Open incidents seen on the last poll, by id. Releases before the one that
+   * added the escalated / reassigned / silenced events stored the bare status
+   * string; such an entry is read as a status-only snapshot for one poll and
+   * upgraded.
    */
   known?: Record<string, Snapshot | Status>;
 }
@@ -55,8 +58,9 @@ const EVENT_RESOLVED = 'incident.resolved';
 
 const TERMINAL: Status[] = ['resolved', 'auto_resolved', 'expired'];
 
-function isQuiet(silencedUntil: string | null, now: number): boolean {
-  if (!silencedUntil) {
+/** Only `silenced_until > now` on a `triggered` incident means quiet (INCIDENT_API.md §3). */
+function isQuiet(status: Status, silencedUntil: string | null, now: number): boolean {
+  if (status !== 'triggered' || !silencedUntil) {
     return false;
   }
   const until = Date.parse(silencedUntil);
@@ -68,42 +72,60 @@ function snapshot(incident: Incident, now: number): Snapshot {
   return {
     status: incident.status,
     assignedTo: incident.assigned_to_user_id ?? null,
+    assignedAt: incident.assigned_at ?? null,
     rulePosition: incident.escalation_rule_position ?? 0,
     repeatCount: incident.escalation_repeat_count ?? 0,
     escalateAt: incident.escalate_at ?? null,
     silencedUntil,
-    quiet: isQuiet(silencedUntil, now),
+    quiet: isQuiet(incident.status, silencedUntil, now),
   };
+}
+
+function at(value: string | null): number {
+  return value ? Date.parse(value) : NaN;
 }
 
 /**
  * The transitions between two snapshots of one open incident, in the order a
- * workflow would want them. Acknowledge, escalate and reassign are exclusive:
- * an acknowledgement also claims the incident (so the assignee moves), and an
- * escalation on a schedule source re-asks the schedule (so the assignee may
+ * workflow would want them. Acknowledge, escalate and reassign are exclusive,
+ * in that priority: an acknowledgement also claims the incident (so the
+ * assignee moves), an escalation re-resolves who is paged (so the assignee may
  * move), and neither is a reassignment. Silence and its lapse are independent
- * of those three.
+ * of those three. `now` is the instant the current snapshot was read.
  */
-function transitions(previous: Snapshot, current: Snapshot): string[] {
+function transitions(previous: Snapshot, current: Snapshot, now: number): string[] {
   const out: string[] = [];
 
-  const acknowledged = previous.status === 'triggered' && current.status === 'acknowledged';
+  // Acknowledging a `triggered` incident, or claiming a reassigned one that
+  // was already `acknowledged`: the claim leaves the status alone, moves the
+  // assignee to the caller and clears the live ack window (INCIDENT_API.md §6).
+  const acknowledged =
+    (previous.status === 'triggered' && current.status === 'acknowledged') ||
+    (previous.status === 'acknowledged' &&
+      current.status === 'acknowledged' &&
+      previous.escalateAt !== null &&
+      current.escalateAt === null);
+  // A rung or a lap moved: a policy rung fired, or a schedule source paged
+  // again (that path counts laps too).
   const laddered =
     current.rulePosition > previous.rulePosition || current.repeatCount > previous.repeatCount;
-  const reassigned = current.assignedTo !== previous.assignedTo;
-  // A source with no policy escalates by moving `escalate_at` forward without
-  // touching the rung counters; a reassignment restarts the window too, so
-  // only an unchanged assignee makes that an escalation.
+  // The ack window moved forward without a counter moving. Two things do
+  // that: the end of a local grace (rule 0 starts, nobody was assigned) and a
+  // reassignment (which restarts the window). They are told apart by the
+  // clock: an escalation happens because the window we last saw ran out.
   const windowMoved =
-    !reassigned &&
-    current.status === 'triggered' &&
     previous.escalateAt !== null &&
     current.escalateAt !== null &&
-    Date.parse(current.escalateAt) > Date.parse(previous.escalateAt);
+    at(current.escalateAt) > at(previous.escalateAt);
+  const windowElapsed = previous.escalateAt !== null && at(previous.escalateAt) <= now;
+  // `assigned_at` moves on a reassign to the responder who already holds it,
+  // which the server treats as a real hand-back rather than a no-op (§7).
+  const reassigned =
+    current.assignedTo !== previous.assignedTo || current.assignedAt !== previous.assignedAt;
 
   if (acknowledged) {
     out.push(EVENT_ACKNOWLEDGED);
-  } else if (laddered || windowMoved) {
+  } else if (laddered || (windowMoved && windowElapsed && current.status === 'triggered')) {
     out.push(EVENT_ESCALATED);
   } else if (reassigned) {
     out.push(EVENT_REASSIGNED);
@@ -120,6 +142,7 @@ function transitions(previous: Snapshot, current: Snapshot): string[] {
     current.status === 'triggered' &&
     current.silencedUntil === previous.silencedUntil
   ) {
+    // Still `triggered` and nothing rewrote the window: the clock ended it.
     out.push(EVENT_UNSILENCED);
   }
 
@@ -174,7 +197,7 @@ export class AlertRosterTrigger implements INodeType {
             name: 'Incident Escalated',
             value: EVENT_ESCALATED,
             description:
-              'The ack window ran out with nobody answering: the next rung of the escalation policy fired, or a schedule source paged again',
+              'The ack window ran out with nobody answering: the next rung of the escalation policy fired, a schedule source paged again, or a local grace ended and the first page went out',
           },
           {
             name: 'Incident Reassigned',
@@ -233,20 +256,26 @@ export class AlertRosterTrigger implements INodeType {
 
     const events = new Set(this.getNodeParameter('events', []) as string[]);
     const duressOnly = this.getNodeParameter('duressOnly', false) === true;
-    const now = Date.now();
     const open = unwrapList(
       await session.request('GET', '/api/v1/incidents'),
       'incidents',
     ) as Incident[];
+    // Read the clock after the request so a silence is judged at the instant
+    // the list was read, not before the round trip.
+    const now = Date.now();
 
     const wanted = (incident: Incident): boolean => !duressOnly || incident.duress === true;
 
-    // Manual test run: show the open incidents as samples without touching state.
+    // Manual test run: show the open incidents as samples without touching
+    // state, as the events the selection would name them.
     if (this.getMode() === 'manual') {
-      const samples = open.filter(wanted).map((incident) => ({
-        event: incident.status === 'acknowledged' ? EVENT_ACKNOWLEDGED : EVENT_TRIGGERED,
-        incident,
-      }));
+      const samples = open
+        .filter(wanted)
+        .map((incident) => ({
+          event: incident.status === 'acknowledged' ? EVENT_ACKNOWLEDGED : EVENT_TRIGGERED,
+          incident,
+        }))
+        .filter((sample) => events.has(sample.event));
       return samples.length ? [this.helpers.returnJsonArray(samples)] : null;
     }
 
@@ -283,15 +312,15 @@ export class AlertRosterTrigger implements INodeType {
       }
 
       if (typeof previous === 'string') {
-        // Pre-0.3.0 state carried only the status; the other fields are
-        // unknown, so only the status transition can be named this poll.
+        // State from an earlier release carried only the status; the other
+        // fields are unknown, so only the status transition can be named.
         if (previous === 'triggered' && incident.status === 'acknowledged') {
           emit(EVENT_ACKNOWLEDGED, incident);
         }
         continue;
       }
 
-      for (const event of transitions(previous, current)) {
+      for (const event of transitions(previous, current, now)) {
         emit(event, incident);
       }
     }
