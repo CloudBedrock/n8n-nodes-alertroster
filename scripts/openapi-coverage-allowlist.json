@@ -22,8 +22,12 @@
     "GET /api/v1/checkins/fallback": "App configuration for text or phone check-in when data is gone. A client-side concern, not a workflow one.",
     "GET /api/v1/checkins/{id}/briefing": "Pre-departure briefing for a check-in's stated destination. Landed on the server after node 0.2.0; candidate for a Check-In operation, not yet assessed.",
     "GET /api/v1/incidents/{id}/context": "Live conditions at a missing person's stated destination. Landed on the server after node 0.2.0; candidate for a Responder Incident operation alongside Get Search, not yet assessed.",
-    "GET /api/v1/incidents/{id}/report": "Responder report link (read). Landed on the server after node 0.2.0; the response of the POST is a credential, so the three report routes need a handling decision before the node grows them.",
-    "POST /api/v1/incidents/{id}/report": "Responder report link (mint). See GET /api/v1/incidents/{id}/report.",
-    "DELETE /api/v1/incidents/{id}/report": "Responder report link (withdraw). See GET /api/v1/incidents/{id}/report."
+    "GET /api/v1/incidents/{id}/timeline": "Shipped by alertroster #375 on 2026-09-17; Responder Incident \u2192 Get Timeline is n8n-nodes-alertroster #13.",
+    "GET /api/v1/records/incidents": "Shipped by alertroster #377 on 2026-09-17; the Records resource is n8n-nodes-alertroster #14.",
+    "GET /api/v1/records/coverage": "Shipped by alertroster #377 on 2026-09-17; the Records resource is n8n-nodes-alertroster #14.",
+    "GET /api/v1/records/export": "Shipped by alertroster #377 on 2026-09-17; the Records resource is n8n-nodes-alertroster #14 (needs n8n binary output).",
+    "GET /api/v1/sources": "Shipped by alertroster #376 on 2026-09-17; Source reads and the Source ID dropdown are n8n-nodes-alertroster #15.",
+    "GET /api/v1/escalation_policies": "Shipped by alertroster #376 on 2026-09-17; Escalation Policy reads are n8n-nodes-alertroster #15.",
+    "GET /api/v1/escalation_policies/{id}": "Shipped by alertroster #376 on 2026-09-17; Escalation Policy reads are n8n-nodes-alertroster #15."
   }
 }

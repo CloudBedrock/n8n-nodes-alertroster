@@ -1,4 +1,4 @@
-import { INodeProperties } from 'n8n-workflow';
+import { IDataObject, INodeProperties } from 'n8n-workflow';
 
 import { ResourceModule, show, stringParam, unwrap, unwrapList } from './shared';
 
@@ -39,6 +39,13 @@ const properties: INodeProperties[] = [
         action: 'Get many incidents',
       },
       {
+        name: 'Get Report',
+        value: 'getReport',
+        description:
+          'Read the shared missing-person report link for an incident, with how many times it has been opened. Answers on a closed incident too.',
+        action: 'Get the report link of an incident',
+      },
+      {
         name: 'Get Search',
         value: 'getSearch',
         description:
@@ -65,16 +72,42 @@ const properties: INodeProperties[] = [
         action: 'Resolve an incident',
       },
       {
+        name: 'Share Report',
+        value: 'shareReport',
+        description:
+          'Mint the public link to the missing-person report for a missed check-in, or return the one already live. The link is a credential: anyone holding it reads the photograph, description and positions with no login.',
+        action: 'Share the report of an incident',
+      },
+      {
         name: 'Silence',
         value: 'silence',
         description: 'Stop the noise for 90 seconds without acknowledging',
         action: 'Silence an incident',
       },
+      {
+        name: 'Withdraw Report',
+        value: 'withdrawReport',
+        description:
+          'Revoke the shared report link. Succeeds whether or not one was live, and after the incident has closed.',
+        action: 'Withdraw the report of an incident',
+      },
     ],
   },
   stringParam(
     RESOURCE,
-    ['get', 'acknowledge', 'resolve', 'reassign', 'silence', 'getSearch', 'locate', 'beacon'],
+    [
+      'get',
+      'acknowledge',
+      'resolve',
+      'reassign',
+      'silence',
+      'getSearch',
+      'locate',
+      'beacon',
+      'getReport',
+      'shareReport',
+      'withdrawReport',
+    ],
     'incidentId',
     'Incident ID',
     'UUID of the incident',
@@ -171,6 +204,36 @@ export const responderIncidentResource: ResourceModule = {
         await client.request('POST', `/api/v1/incidents/${id}/search/beacon`, { body }),
         'command',
       );
+    },
+    // The responder report is a capability URL to a one-page missing-person
+    // report (INCIDENT_API.md §14). One live link per incident: minting again
+    // returns the existing one rather than rotating a QR code already printed.
+    // The `url` in these responses grants no-login access to the subject's
+    // photograph and positions; the README says so and workflows should treat
+    // it accordingly.
+    async getReport(itemIndex, client) {
+      const id = this.getNodeParameter('incidentId', itemIndex) as string;
+      const response = await client.request('GET', `/api/v1/incidents/${id}/report`);
+      const report = response.report;
+      if (report && typeof report === 'object' && !Array.isArray(report)) {
+        return { shared: true, incident_id: id, ...(report as IDataObject) };
+      }
+      return { shared: false, incident_id: id };
+    },
+    async shareReport(itemIndex, client) {
+      const id = this.getNodeParameter('incidentId', itemIndex) as string;
+      // The report's own `id` is the link, so the incident id rides along for
+      // a chained Withdraw Report.
+      const report = unwrap(
+        await client.request('POST', `/api/v1/incidents/${id}/report`),
+        'report',
+      );
+      return { incident_id: id, ...report };
+    },
+    async withdrawReport(itemIndex, client) {
+      const id = this.getNodeParameter('incidentId', itemIndex) as string;
+      await client.request('DELETE', `/api/v1/incidents/${id}/report`);
+      return { success: true, id };
     },
   },
 };
