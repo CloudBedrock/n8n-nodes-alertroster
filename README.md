@@ -231,12 +231,32 @@ using the Responder credential. Pick the events to watch:
 |---|---|
 | Incident Triggered | A new incident appears in the open list |
 | Incident Acknowledged | An open incident moves to `acknowledged` |
+| Incident Escalated | The ack window ran out with nobody answering: `escalation_rule_position` or `escalation_repeat_count` moved (the next rung of an escalation policy fired, `paged_user_ids` names who it woke), or `escalate_at` moved forward on a source with no policy |
+| Incident Reassigned | `assigned_to_user_id` changed on an open incident, other than by the acknowledgement that claims it or by an escalation |
+| Incident Silenced | `silenced_until` was set to a time still ahead; a second silence that overwrites a running one fires again |
+| Incident Unsilenced | A silence ran out on a still-`triggered` incident with nobody having answered |
 | Incident Resolved | An incident leaves the open list; the node fetches it by ID and reports its final status (`resolved`, `auto_resolved`, or `expired`) |
 
-Each item is `{ event, incident }`. On first activation the node records what
-is already open and emits nothing. A manual test run shows the current open
-incidents as samples without changing that state. Set the poll interval in the
-node; one request per poll plus one per incident that closed.
+Each item is `{ event, incident }`. The events other than Triggered and
+Resolved are read off the fields of the open list between two polls, so a
+transition that happens and is undone inside one interval (a silence that
+lapses, a reassignment that is acknowledged) is reported as whatever the
+incident looks like at the next poll, and one poll can emit several events
+for one incident (a reassignment and a silence together). On first activation
+the node records what is already open and emits nothing. A manual test run
+shows the current open incidents as samples without changing that state. Set
+the poll interval in the node; one request per poll plus one per incident that
+closed.
+
+**Duress.** Every incident carries `duress`, `true` when a check-in was
+satisfied with the duress code: the person is signalling under coercion, the
+phones stay silent, and a workflow should branch on it before anything else
+(no broadcast, no call back to the subject). Turn on **Duress Only** to make a
+trigger fire for those incidents alone.
+
+Upgrading from a release before 0.3.0: the first poll after the upgrade names
+only status transitions for incidents that were already open, then carries the
+full snapshot from there.
 
 ## Development
 
