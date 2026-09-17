@@ -216,13 +216,19 @@ export const responderIncidentResource: ResourceModule = {
       const response = await client.request('GET', `/api/v1/incidents/${id}/report`);
       const report = response.report;
       if (report && typeof report === 'object' && !Array.isArray(report)) {
-        return { shared: true, ...(report as IDataObject) };
+        return { shared: true, incident_id: id, ...(report as IDataObject) };
       }
-      return { shared: false };
+      return { shared: false, incident_id: id };
     },
     async shareReport(itemIndex, client) {
       const id = this.getNodeParameter('incidentId', itemIndex) as string;
-      return unwrap(await client.request('POST', `/api/v1/incidents/${id}/report`), 'report');
+      // The report's own `id` is the link, so the incident id rides along for
+      // a chained Withdraw Report.
+      const report = unwrap(
+        await client.request('POST', `/api/v1/incidents/${id}/report`),
+        'report',
+      );
+      return { incident_id: id, ...report };
     },
     async withdrawReport(itemIndex, client) {
       const id = this.getNodeParameter('incidentId', itemIndex) as string;
