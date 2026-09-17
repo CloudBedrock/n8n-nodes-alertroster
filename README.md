@@ -124,11 +124,27 @@ needs to follow the ladder.
 | Get Search | The search panel for a missed check-in: `positions` (the trail, newest first, each with `fix_at` and `captured_at`), `commands`, `locate` and `beacon` availability with a `reason` when not, and `subject` (the frozen `stated` description plus the live `profile`, or `null`). On an incident not raised by a check-in the panel is empty and both capabilities report `not_a_checkin_incident`. |
 | Locate | Asks the subject's device for a fresh position. Returns the queued `command` (202); poll Get Search or Get for the fix. |
 | Beacon | Mode `steady`, `strobe` or `off`. Lights the subject's torch for 900 seconds; send again to keep it going. Returns the queued `command`. On a duress incident the request is refused with `409 duress_confirmation_required` unless **Confirm Duress** is on; `off` needs no consent. |
+| Share Report | Mints the public link to the one-page missing-person report for a missed check-in, or returns the link already live (one per incident, so a printed QR code keeps working). Returns the report: `url`, `expires_at` (seven days), `created_at`, `created_by_user_id`, `view_count`, `last_viewed_at`. `409 not_a_checkin_incident` on an incident a monitor raised; `409 incident_closed` after stand-down. |
+| Get Report | The live link and its `view_count` / `last_viewed_at` as `{ shared: true, ...report }`, or `{ shared: false }` when nothing has been shared. Answers on a closed incident too. |
+| Withdraw Report | Revokes the link; it stops answering on the next request. Returns `{ success: true, id }` whether or not a link was live, and after the incident has closed. |
 
 Get Search, Locate and Beacon need the subject's consent (`409 consent_missing`)
 and an open incident (`409 incident_closed`). Photo URLs in `subject.profile`
 are presigned and expire in minutes; every photograph carries `taken_at` and
 `age_days`, and anything that shows the image should show its age.
+
+**The report link is a credential.** Anyone holding the `url` that Share
+Report and Get Report return can read the subject's photograph, description
+and captured positions with no login. n8n keeps execution data, so a workflow
+that handles it should send the link where it is needed (a text message, a
+chat channel, an email to the search team) and not write it into logs or
+sheets. The pattern that fits: on `incident.triggered` for a check-in incident,
+Share Report and post the link; later, branch on Get Report's `view_count` to
+chase a team that has not opened it; on `incident.resolved`, Withdraw Report.
+A closed incident keeps answering the page with a stand-down notice until the
+link is withdrawn or its seven days run out. These three operations, like
+Get Search, Locate and Beacon, need a current access token; the node signs
+in afresh before its cached token expires, so nothing extra is required.
 
 ### User
 
