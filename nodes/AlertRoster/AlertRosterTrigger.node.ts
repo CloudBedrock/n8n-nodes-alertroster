@@ -150,9 +150,10 @@ function transitions(previous: Snapshot, current: Snapshot, now: number): string
 }
 
 /**
- * AlertRoster has no outbound webhooks and `GET /api/v1/incidents` returns
- * only open incidents with no cursor, so this trigger diffs the open list
- * between polls. An incident that leaves the open list is fetched by id to
+ * The polling fallback. AlertRoster's signed outbound webhooks are the push
+ * path (AlertRosterWebhookTrigger); this trigger is for an n8n that cannot
+ * receive them. `GET /api/v1/incidents` returns only open incidents with no
+ * cursor, so this trigger diffs the open list between polls. An incident that leaves the open list is fetched by id to
  * learn how it closed. Everything else is read off the incident fields the
  * list already carries, so a reassignment, an escalation and a silence cost
  * no extra request.
