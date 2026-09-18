@@ -1,6 +1,6 @@
 import { IDataObject, IExecuteFunctions, INodeProperties, NodeOperationError } from 'n8n-workflow';
 
-import { ResourceModule, asInteger, show, unwrap, unwrapList } from './shared';
+import { ResourceModule, asInteger, binaryItem, show, unwrap, unwrapList } from './shared';
 
 const RESOURCE = 'record';
 
@@ -10,6 +10,11 @@ const PAGE_SIZE = 100;
 
 const EXPORT_FORMATS = [
   {
+    name: 'Both Tables (JSON)',
+    value: 'json',
+    description: 'The incident timeline and the check-in events in one document',
+  },
+  {
     name: 'Check-In Events (CSV)',
     value: 'checkin_csv',
     description: 'One row per check-in event: armed, extended, satisfied, cancelled, missed',
@@ -18,11 +23,6 @@ const EXPORT_FORMATS = [
     name: 'Incident Timeline (CSV)',
     value: 'timeline_csv',
     description: 'One row per incident timeline entry',
-  },
-  {
-    name: 'Both Tables (JSON)',
-    value: 'json',
-    description: 'The incident timeline and the check-in events in one document',
   },
 ];
 
@@ -175,17 +175,10 @@ export const recordsResource: ResourceModule = {
       const extension = format === 'json' ? 'json' : 'csv';
       const fileName = file.fileName ?? `alertroster-records-${format}-${from}-${to}.${extension}`;
       const mimeType = file.contentType.split(';')[0].trim();
-      return {
-        json: {
-          from,
-          to,
-          format,
-          file_name: fileName,
-          mime_type: mimeType,
-          bytes: file.body.length,
-        },
-        binary: { data: await this.helpers.prepareBinaryData(file.body, fileName, mimeType) },
-      };
+      return binaryItem(
+        { from, to, format, file_name: fileName, mime_type: mimeType, bytes: file.body.length },
+        { data: await this.helpers.prepareBinaryData(file.body, fileName, mimeType) },
+      );
     },
   },
 };

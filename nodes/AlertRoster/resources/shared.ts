@@ -26,7 +26,8 @@ export interface ApiClient {
 
 /**
  * A handler returns plain objects (one item each; arrays fan out), or a
- * ready-made execution item when the output carries binary data.
+ * ready-made execution item built with `binaryItem` when the output carries
+ * a file.
  */
 export type OperationResult = IDataObject | IDataObject[] | INodeExecutionData;
 
@@ -36,10 +37,27 @@ export type OperationHandler = (
   client: ApiClient,
 ) => Promise<OperationResult>;
 
-/** A handler result that already is an execution item (json + binary). */
+// A brand rather than a shape check: a server object that happened to carry
+// `json` and `binary` keys must still be wrapped as ordinary output.
+const BINARY_ITEM = Symbol('alertroster.binaryItem');
+
+/** An execution item carrying a file, marked so `execute()` passes it through. */
+export function binaryItem(
+  json: IDataObject,
+  binary: INodeExecutionData['binary'],
+): INodeExecutionData {
+  const item: INodeExecutionData = { json, binary };
+  Object.defineProperty(item, BINARY_ITEM, { value: true, enumerable: false });
+  return item;
+}
+
+/** A handler result built by `binaryItem`. */
 export function isExecutionItem(result: OperationResult): result is INodeExecutionData {
   return (
-    !Array.isArray(result) && typeof result === 'object' && 'json' in result && 'binary' in result
+    result !== null &&
+    typeof result === 'object' &&
+    !Array.isArray(result) &&
+    (result as unknown as Record<symbol, unknown>)[BINARY_ITEM] === true
   );
 }
 
