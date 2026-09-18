@@ -45,7 +45,7 @@ instance. HTTPS is required except for localhost.
 ### AlertRoster Responder
 
 For everything else (Responder Incident, User, Schedule, Layer, Handoff,
-Override, Check-In, Record) and for the Trigger node. Enter the responder's **email**
+Override, Check-In, Record, Source, Escalation Policy) and for the Trigger node. Enter the responder's **email**
 and **password**. Responders normally sign in by magic link, so the password is
 opt-in: set one under Settings in AlertRoster first. Leave **Account ID** blank
 unless the email belongs to more than one account; the node then lists the
@@ -253,6 +253,33 @@ are the source's own words. "Nothing reported" and "the sources could not be
 reached" are different answers: branch on `complete` and each source's
 `answered` before telling anyone that all is quiet. A source that is down
 never fails the request; it is reported inside `sources`.
+
+### Source (admin, read-only)
+
+| Operation | Notes |
+|---|---|
+| Get Many | Every source and what it escalates to: `escalates_to` is `{ type: 'schedule' \| 'escalation_policy', id }` or null (nothing, which pages every responder), with `escalation_schedule_id`, `escalation_policy_id`, `max_priority`, `default_local_grace_seconds`, `type`, and `integration_keys` as prefix, lane, `last_used_at` and `revoked_at`, never the key itself. |
+
+Sources are edited on the Sources page. The `id` here is what Incident →
+Create's **Source ID** takes with an `art_` token, and `last_used_at` on a
+key is how a workflow spots a monitor that has gone quiet.
+
+### Escalation Policy (admin, read-only)
+
+| Operation | Notes |
+|---|---|
+| Get Many | Every ladder: `name`, `repeat_count` (how many times the whole list runs again after its last rung; 0 runs it once) and `rules` in position order, each with `ack_timeout_seconds` and `targets` (`user` or `schedule`). Nobody is resolved here. |
+| Get | One ladder with `would_wake` on every rung: the people that rung would page right now, each with the `via` label the timeline records for a real page, or `unresolved` as `no_targets` (the rung names nobody) or `nobody` (its targets resolve to no-one today). Optional **At** answers for another instant. A live answer about the present, never a record; what a rung did wake is on the incident's timeline. |
+
+A coverage audit is Source → Get Many joined to Escalation Policy → Get on
+each `escalation_policy_id`: any source whose ladder's first rung reports
+`unresolved` is one whose next incident pages nobody by name. Run it on a
+schedule with **At** set to the next weekend night.
+
+**Dropdowns.** Every Schedule ID field on the Layer, Override, Handoff and
+Check-In resources is a dropdown filled from the responder credential, and
+still takes an expression. Source ID on Incident → Create stays a plain
+field: that resource runs on an integration key, which cannot list sources.
 
 ### Record
 

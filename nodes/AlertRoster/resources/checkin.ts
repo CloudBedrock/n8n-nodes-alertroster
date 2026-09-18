@@ -217,12 +217,13 @@ const properties: INodeProperties[] = [
     displayOptions: show(RESOURCE, ['create']),
     options: [
       {
-        displayName: 'Escalation Schedule ID',
+        displayName: 'Escalation Schedule Name or ID',
         name: 'escalationScheduleId',
-        type: 'string',
+        type: 'options',
+        typeOptions: { loadOptionsMethod: 'getSchedules' },
         default: '',
         description:
-          'Schedule whose on-call responder is paged when the deadline passes. Empty pages every responder.',
+          'Schedule whose on-call responder is paged when the deadline passes; empty pages every responder. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
       },
       {
         displayName: 'Reminder Lead (Seconds)',
@@ -242,11 +243,13 @@ const properties: INodeProperties[] = [
     displayOptions: show(RESOURCE, ['update']),
     options: [
       {
-        displayName: 'Escalation Schedule ID',
+        displayName: 'Escalation Schedule Name or ID',
         name: 'escalationScheduleId',
-        type: 'string',
+        type: 'options',
+        typeOptions: { loadOptionsMethod: 'getSchedulesOrNone' },
         default: '',
-        description: 'Set to the word "none" to clear',
+        description:
+          'Pick "None (Clear)" to clear. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
       },
       { displayName: 'Label', name: 'label', type: 'string', default: '' },
       {

@@ -19,9 +19,6 @@
     "DELETE /api/v1/checkins/profile/photo/{id}": "Photographs are a presigned-upload flow; see POST /api/v1/checkins/profile/photo.",
     "PUT /api/v1/checkins/duress_code": "Changes the duress code alone, proved by the current check-in code sent as `code` and not written. The node's Set Code already sends both codes through PUT /api/v1/checkins/code and models no separate proof parameter yet; landed on the server after node 0.2.0, not yet assessed.",
     "POST /api/v1/checkins/{id}/positions": "The device half of search support: a phone streams its own fixes during an armed window. Not a workflow surface.",
-    "GET /api/v1/checkins/fallback": "App configuration for text or phone check-in when data is gone. A client-side concern, not a workflow one.",
-    "GET /api/v1/sources": "Shipped by alertroster #376 on 2026-09-17; Source reads and the Source ID dropdown are n8n-nodes-alertroster #15.",
-    "GET /api/v1/escalation_policies": "Shipped by alertroster #376 on 2026-09-17; Escalation Policy reads are n8n-nodes-alertroster #15.",
-    "GET /api/v1/escalation_policies/{id}": "Shipped by alertroster #376 on 2026-09-17; Escalation Policy reads are n8n-nodes-alertroster #15."
+    "GET /api/v1/checkins/fallback": "App configuration for text or phone check-in when data is gone. A client-side concern, not a workflow one."
   }
 }
