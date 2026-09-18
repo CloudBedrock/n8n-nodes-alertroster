@@ -1,7 +1,9 @@
 import {
   IDataObject,
   IExecuteFunctions,
+  ILoadOptionsFunctions,
   INodeExecutionData,
+  INodePropertyOptions,
   INodeType,
   INodeTypeDescription,
   NodeApiError,
@@ -10,8 +12,14 @@ import {
 } from 'n8n-workflow';
 
 import { KeyClient } from '../../utils/KeyClient';
-import { ResponderSession } from '../../utils/ResponderSession';
+import {
+  ResponderCredentials,
+  ResponderSession,
+  cacheKeyFor,
+  credentialIdentity,
+} from '../../utils/ResponderSession';
 import { checkinResource } from './resources/checkin';
+import { escalationPolicyResource } from './resources/escalationPolicy';
 import { eventResource } from './resources/event';
 import { handoffResource } from './resources/handoff';
 import { incidentResource } from './resources/incident';
@@ -20,11 +28,13 @@ import { overrideResource } from './resources/override';
 import { recordsResource } from './resources/records';
 import { responderIncidentResource } from './resources/responderIncident';
 import { scheduleResource } from './resources/schedule';
-import { ApiClient, ResourceModule, isExecutionItem } from './resources/shared';
+import { ApiClient, ResourceModule, isExecutionItem, unwrapList } from './resources/shared';
+import { sourceResource } from './resources/source';
 import { userResource } from './resources/user';
 
 const RESOURCES: ResourceModule[] = [
   checkinResource,
+  escalationPolicyResource,
   eventResource,
   handoffResource,
   incidentResource,
@@ -33,8 +43,59 @@ const RESOURCES: ResourceModule[] = [
   recordsResource,
   responderIncidentResource,
   scheduleResource,
+  sourceResource,
   userResource,
 ];
+
+// Session caches for the dropdown loaders. Load-options calls have no
+// workflow static data, and a fresh login per dropdown open would eat the
+// per-IP login budget, so tokens live here for the process instead: one
+// entry per credential identity (base URL, email, password and account, the
+// same identity ResponderSession keys on), dropped once its token has
+// lapsed, and capped so a long-lived process cannot accumulate tokens.
+const OPTION_SESSION_CAP = 50;
+const optionSessions = new Map<string, IDataObject>();
+
+function tokenLive(identity: string, cache: IDataObject): boolean {
+  const token = cache[cacheKeyFor(identity)] as { expiresAt?: number } | undefined;
+  return typeof token?.expiresAt === 'number' && token.expiresAt > Date.now();
+}
+
+async function optionSession(ctx: ILoadOptionsFunctions): Promise<ResponderSession> {
+  const raw = await ctx.getCredentials('alertRosterResponderApi');
+  const credentials: ResponderCredentials = {
+    baseUrl: raw.baseUrl as string,
+    email: raw.email as string,
+    password: raw.password as string,
+    accountId: (raw.accountId as string) || undefined,
+  };
+  const identity = credentialIdentity(credentials);
+  for (const [key, cache] of optionSessions) {
+    if (key !== identity && !tokenLive(key, cache)) {
+      optionSessions.delete(key);
+    }
+  }
+  let cache = optionSessions.get(identity);
+  if (!cache) {
+    cache = {};
+    if (optionSessions.size >= OPTION_SESSION_CAP) {
+      const oldest = optionSessions.keys().next().value;
+      if (oldest !== undefined) {
+        optionSessions.delete(oldest);
+      }
+    }
+    optionSessions.set(identity, cache);
+  }
+  return new ResponderSession(credentials, cache);
+}
+
+async function scheduleOptions(ctx: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+  const session = await optionSession(ctx);
+  const schedules = unwrapList(await session.request('GET', '/api/v1/schedules'), 'schedules');
+  return schedules
+    .map((s) => ({ name: String(s.name ?? s.id), value: String(s.id) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
 
 const BY_RESOURCE = new Map(RESOURCES.map((module) => [module.resource, module]));
 
@@ -83,6 +144,12 @@ export class AlertRoster implements INodeType {
             description: "This responder's dead-man's-switch check-ins (responder sign-in)",
           },
           {
+            name: 'Escalation Policy',
+            value: 'escalationPolicy',
+            description:
+              'Escalation ladders, read-only: every rung and who it would wake right now (responder sign-in, admin)',
+          },
+          {
             name: 'Event',
             value: 'event',
             description: 'Fire-and-forget events on the ingest firehose (ark_async_ key)',
@@ -126,6 +193,12 @@ export class AlertRoster implements INodeType {
             description: 'On-call schedules, who is on call, and the roster (responder sign-in)',
           },
           {
+            name: 'Source',
+            value: 'source',
+            description:
+              'What raises events and what each source escalates to, read-only (responder sign-in, admin)',
+          },
+          {
             name: 'User',
             value: 'user',
             description: 'Responders in the account (responder sign-in)',
@@ -134,6 +207,19 @@ export class AlertRoster implements INodeType {
       },
       ...RESOURCES.flatMap((module) => module.properties),
     ],
+  };
+
+  methods = {
+    loadOptions: {
+      async getSchedules(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+        return scheduleOptions(this);
+      },
+      // The check-in update field clears the escalation schedule with the
+      // word "none", so that choice is offered beside the schedules.
+      async getSchedulesOrNone(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+        return [{ name: 'None (Clear)', value: 'none' }, ...(await scheduleOptions(this))];
+      },
+    },
   };
 
   async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {

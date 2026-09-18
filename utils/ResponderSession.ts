@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { IDataObject, IHttpRequestMethods } from 'n8n-workflow';
 
 import {
@@ -35,6 +37,25 @@ interface CachedToken {
 const EXPIRY_MARGIN_MS = 60_000;
 
 /**
+ * The cache identity of a responder credential: everything that decides
+ * which token a login mints. Two credentials with the same email but a
+ * different password or account must never share a token, so those are
+ * folded in as a digest rather than left out of the key.
+ */
+export function credentialIdentity(credentials: ResponderCredentials): string {
+  const digest = createHash('sha256')
+    .update(JSON.stringify([credentials.password, credentials.accountId ?? '']))
+    .digest('hex')
+    .slice(0, 16);
+  return `${credentials.baseUrl.replace(/\/+$/, '')}:${credentials.email}:${digest}`;
+}
+
+/** Where a session keeps its token in the cache object it is given. */
+export function cacheKeyFor(identity: string): string {
+  return `alertroster:responder:${identity}`;
+}
+
+/**
  * A responder-token session: signs in with email + password, caches the
  * short-lived access token in the static-data object it is given (per
  * credential, shared by every node in the workflow), and signs in again when
@@ -54,7 +75,7 @@ export class ResponderSession {
     private readonly staticData: IDataObject,
   ) {
     this.http = new AlertRosterHttp(credentials.baseUrl);
-    this.cacheKey = `alertroster:responder:${credentials.baseUrl.replace(/\/+$/, '')}:${credentials.email}`;
+    this.cacheKey = cacheKeyFor(credentialIdentity(credentials));
   }
 
   /** The signed-in account id, signing in first if needed. */

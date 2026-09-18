@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`n8n-nodes-alertroster`: an n8n community node package for AlertRoster (CloudBedrock's call-out / on-call / escalation platform). Two nodes ship: **AlertRoster** (action node, 10 resources) and **AlertRoster Trigger** (polling trigger). Zero runtime dependencies; HTTP is Node 20 `fetch`. Published to npm; public GitHub repo `CloudBedrock/n8n-nodes-alertroster` (issues for the node live there; the AlertRoster backend lives on CodeCommit).
+`n8n-nodes-alertroster`: an n8n community node package for AlertRoster (CloudBedrock's call-out / on-call / escalation platform). Two nodes ship: **AlertRoster** (action node, 12 resources) and **AlertRoster Trigger** (polling trigger). Zero runtime dependencies; HTTP is Node 20 `fetch`. Published to npm; public GitHub repo `CloudBedrock/n8n-nodes-alertroster` (issues for the node live there; the AlertRoster backend lives on CodeCommit).
 
 Design spec: `docs/superpowers/specs/2026-09-06-n8n-nodes-alertroster-design.md`. The package deliberately mirrors the toolchain of `~/dev/n8n-nodes-pewpros`.
 
@@ -35,7 +35,7 @@ cd ~/.n8n/custom && npm link n8n-nodes-alertroster
 ### Two credential families, chosen by resource
 
 - `AlertRosterIntegrationKeyApi` (`alertRosterIntegrationKeyApi`): a bearer key + base URL. Keys are lane-bound: `ark_async_` for the Event resource (`POST /api/v2/enqueue`), `ark_sync_` or `art_` for the Incident resource (`/api/v2/incidents`). No `authenticate` block and no credential test on purpose: `utils/KeyClient.ts` checks the prefix against the lane before sending, because the server answers every key problem with an identical bare 401. `art_` tokens must supply a `source_id` on incident create (`KeyClient.isAccountToken`).
-- `AlertRosterResponderApi` (`alertRosterResponderApi`): email + password (+ optional account id) for every `/api/v1/*` route and for the trigger. `utils/ResponderSession.ts` logs in, caches the 15-minute access token in **global** workflow static data under `alertroster:responder:<baseUrl>:<email>`, re-logs in 60 s before expiry or after any 401 (one retry). Refresh tokens are intentionally unused (server revokes the token family on reuse; concurrent executions share the cache). Login is throttled at 30 / 15 min / IP.
+- `AlertRosterResponderApi` (`alertRosterResponderApi`): email + password (+ optional account id) for every `/api/v1/*` route and for the trigger. `utils/ResponderSession.ts` logs in, caches the 15-minute access token in **global** workflow static data under `alertroster:responder:<baseUrl>:<email>:<digest of password and account id>` (`credentialIdentity`), so two credentials that share an email never share a token, re-logs in 60 s before expiry or after any 401 (one retry). Refresh tokens are intentionally unused (server revokes the token family on reuse; concurrent executions share the cache). Login is throttled at 30 / 15 min / IP.
 
 The action node declares both credentials with `displayOptions` on `resource`, derived from each module's `auth` field, so the UI asks for exactly one.
 
@@ -43,7 +43,7 @@ The action node declares both credentials with `displayOptions` on `resource`, d
 
 `nodes/AlertRoster/AlertRoster.node.ts` holds no per-resource logic. Each file in `nodes/AlertRoster/resources/` exports a `ResourceModule` (`shared.ts`): `{ resource, auth: 'key' | 'responder', lane?, properties: INodeProperties[], operations: Record<op, handler> }`. The node concatenates every module's `properties` into its description and, in `execute()`, looks up the module by `resource`, builds one client (`KeyClient` or `ResponderSession`, both satisfy `ApiClient`) and calls `operations[operation]` per input item. Handlers are `function(this: IExecuteFunctions, itemIndex, client)` and return one object or an array (arrays fan out to one item each, all paired to the input item), or a ready-made execution item `{ json, binary }` when the output is a file (`isExecutionItem` in `shared.ts`; Record → Export is the one case, using `client.download`, which only `ResponderSession` provides).
 
-To add an operation: add its option to the module's `operation` property, add its parameters with `displayOptions: show(RESOURCE, [ops])`, add the handler. To add a resource: new module file, register it in the `RESOURCES` array and the `Resource` options list in the node.
+To add an operation: add its option to the module's `operation` property, add its parameters with `displayOptions: show(RESOURCE, [ops])`, add the handler. To add a resource: new module file, register it in the `RESOURCES` array and the `Resource` options list in the node. Schedule ID fields are `options` parameters filled by the node's `loadOptions` methods (`getSchedules`, `getSchedulesOrNone`), which build a `ResponderSession` on a process-level cache because load-options calls have no workflow static data.
 
 Conventions enforced by helpers in `shared.ts` and by the server:
 - Responses are unwrapped (`unwrap`/`unwrapList`): `{ incident: {…} }` becomes the incident; list wrappers become one item per element; multi-key responses (schedule create/delete) pass through; 204 becomes `{ success: true, id }`.

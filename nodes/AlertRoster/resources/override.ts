@@ -28,7 +28,17 @@ const properties: INodeProperties[] = [
     ],
   },
   stringParam(RESOURCE, ['cancel'], 'overrideId', 'Override ID', 'UUID of the override'),
-  stringParam(RESOURCE, ['create'], 'scheduleId', 'Schedule ID', 'UUID of the schedule'),
+  stringParam(
+    RESOURCE,
+    ['create'],
+    'scheduleId',
+    'Schedule Name or ID',
+    'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+    {
+      type: 'options',
+      typeOptions: { loadOptionsMethod: 'getSchedules' },
+    },
+  ),
   stringParam(RESOURCE, ['create'], 'userId', 'User ID', 'UUID of the responder to put on call'),
   stringParam(RESOURCE, ['create'], 'startsAt', 'Starts At', 'ISO 8601 start of the window'),
   stringParam(RESOURCE, ['create'], 'endsAt', 'Ends At', 'ISO 8601 end of the window'),
