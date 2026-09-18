@@ -1,6 +1,7 @@
 import { IDataObject, INodeProperties } from 'n8n-workflow';
 
 import {
+  briefing,
   ResourceModule,
   asInteger,
   compact,
@@ -69,6 +70,13 @@ const properties: INodeProperties[] = [
         description:
           "Whether this responder lets a searcher light their phone's torch during an activation",
         action: 'Get the beacon opt-in',
+      },
+      {
+        name: 'Get Briefing',
+        value: 'getBriefing',
+        description:
+          "The pre-departure briefing: what the situational sources say about where this check-in's destination is, in their own words, with age and attribution. Not advice, and never a reason a check-in was not armed. Answers { available: false, reason: 'no_destination' } when no located destination is set.",
+        action: 'Get the pre-departure briefing of a check-in',
       },
       {
         name: 'Get Code Status',
@@ -169,7 +177,7 @@ const properties: INodeProperties[] = [
   },
   stringParam(
     RESOURCE,
-    ['update', 'delete', 'setRequireCode', 'setDetails', ...TRANSITIONS],
+    ['update', 'delete', 'setRequireCode', 'setDetails', 'getBriefing', ...TRANSITIONS],
     'checkinId',
     'Check-In ID',
     'UUID of the check-in',
@@ -453,6 +461,10 @@ export const checkinResource: ResourceModule = {
       const id = this.getNodeParameter('checkinId', itemIndex) as string;
       await client.request('DELETE', `/api/v1/checkins/${id}`);
       return { success: true, id };
+    },
+    async getBriefing(itemIndex, client) {
+      const id = this.getNodeParameter('checkinId', itemIndex) as string;
+      return briefing(client.request('GET', `/api/v1/checkins/${id}/briefing`));
     },
     async arm(itemIndex, client) {
       const id = this.getNodeParameter('checkinId', itemIndex) as string;

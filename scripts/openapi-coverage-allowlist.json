@@ -20,8 +20,6 @@
     "PUT /api/v1/checkins/duress_code": "Changes the duress code alone, proved by the current check-in code sent as `code` and not written. The node's Set Code already sends both codes through PUT /api/v1/checkins/code and models no separate proof parameter yet; landed on the server after node 0.2.0, not yet assessed.",
     "POST /api/v1/checkins/{id}/positions": "The device half of search support: a phone streams its own fixes during an armed window. Not a workflow surface.",
     "GET /api/v1/checkins/fallback": "App configuration for text or phone check-in when data is gone. A client-side concern, not a workflow one.",
-    "GET /api/v1/checkins/{id}/briefing": "Pre-departure briefing for a check-in's stated destination. Landed on the server after node 0.2.0; candidate for a Check-In operation, not yet assessed.",
-    "GET /api/v1/incidents/{id}/context": "Live conditions at a missing person's stated destination. Landed on the server after node 0.2.0; candidate for a Responder Incident operation alongside Get Search, not yet assessed.",
     "GET /api/v1/incidents/{id}/timeline": "Shipped by alertroster #375 on 2026-09-17; Responder Incident \u2192 Get Timeline is n8n-nodes-alertroster #13.",
     "GET /api/v1/records/incidents": "Shipped by alertroster #377 on 2026-09-17; the Records resource is n8n-nodes-alertroster #14.",
     "GET /api/v1/records/coverage": "Shipped by alertroster #377 on 2026-09-17; the Records resource is n8n-nodes-alertroster #14.",

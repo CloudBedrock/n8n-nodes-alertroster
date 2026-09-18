@@ -157,6 +157,31 @@ export function isNotFound(error: unknown): boolean {
 }
 
 /**
+ * The situational briefing (`CHECKIN_API.md` §21) for a stated destination:
+ * served by `GET /checkins/:id/briefing` before a trip and by
+ * `GET /incidents/:id/context` during a search, the same `{ briefing }`
+ * object either way. Most check-ins and incidents have no located
+ * destination, so the server's `404 no_destination` is the ordinary answer
+ * rather than a failure and becomes `{ available: false, reason }` for a
+ * workflow to branch on. A source that is down is reported inside the
+ * briefing (`complete: false`, its `sources` entry), never as an error.
+ */
+export async function briefing(request: Promise<IDataObject>): Promise<IDataObject> {
+  try {
+    return { available: true, ...unwrap(await request, 'briefing') };
+  } catch (error) {
+    if (
+      error instanceof AlertRosterHttpError &&
+      error.status === 404 &&
+      error.code === 'no_destination'
+    ) {
+      return { available: false, reason: 'no_destination' };
+    }
+    throw error;
+  }
+}
+
+/**
  * The optional `location` object accepted by the four check-in transitions.
  * The server drops it silently when it is malformed or unconsented, so the
  * node only forwards what the user filled in.
