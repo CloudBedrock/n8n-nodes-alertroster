@@ -12,7 +12,12 @@ import {
 } from 'n8n-workflow';
 
 import { KeyClient } from '../../utils/KeyClient';
-import { ResponderSession } from '../../utils/ResponderSession';
+import {
+  ResponderCredentials,
+  ResponderSession,
+  cacheKeyFor,
+  credentialIdentity,
+} from '../../utils/ResponderSession';
 import { checkinResource } from './resources/checkin';
 import { escalationPolicyResource } from './resources/escalationPolicy';
 import { eventResource } from './resources/event';
@@ -42,28 +47,46 @@ const RESOURCES: ResourceModule[] = [
   userResource,
 ];
 
-// Session caches for the dropdown loaders, keyed like ResponderSession's own
-// cache. Load-options calls have no workflow static data, and a fresh login
-// per dropdown open would eat the per-IP login budget.
+// Session caches for the dropdown loaders. Load-options calls have no
+// workflow static data, and a fresh login per dropdown open would eat the
+// per-IP login budget, so tokens live here for the process instead: one
+// entry per credential identity (base URL, email, password and account, the
+// same identity ResponderSession keys on), dropped once its token has
+// lapsed, and capped so a long-lived process cannot accumulate tokens.
+const OPTION_SESSION_CAP = 50;
 const optionSessions = new Map<string, IDataObject>();
 
+function tokenLive(identity: string, cache: IDataObject): boolean {
+  const token = cache[cacheKeyFor(identity)] as { expiresAt?: number } | undefined;
+  return typeof token?.expiresAt === 'number' && token.expiresAt > Date.now();
+}
+
 async function optionSession(ctx: ILoadOptionsFunctions): Promise<ResponderSession> {
-  const credentials = await ctx.getCredentials('alertRosterResponderApi');
-  const key = `${credentials.baseUrl}:${credentials.email}`;
-  let cache = optionSessions.get(key);
+  const raw = await ctx.getCredentials('alertRosterResponderApi');
+  const credentials: ResponderCredentials = {
+    baseUrl: raw.baseUrl as string,
+    email: raw.email as string,
+    password: raw.password as string,
+    accountId: (raw.accountId as string) || undefined,
+  };
+  const identity = credentialIdentity(credentials);
+  for (const [key, cache] of optionSessions) {
+    if (key !== identity && !tokenLive(key, cache)) {
+      optionSessions.delete(key);
+    }
+  }
+  let cache = optionSessions.get(identity);
   if (!cache) {
     cache = {};
-    optionSessions.set(key, cache);
+    if (optionSessions.size >= OPTION_SESSION_CAP) {
+      const oldest = optionSessions.keys().next().value;
+      if (oldest !== undefined) {
+        optionSessions.delete(oldest);
+      }
+    }
+    optionSessions.set(identity, cache);
   }
-  return new ResponderSession(
-    {
-      baseUrl: credentials.baseUrl as string,
-      email: credentials.email as string,
-      password: credentials.password as string,
-      accountId: (credentials.accountId as string) || undefined,
-    },
-    cache,
-  );
+  return new ResponderSession(credentials, cache);
 }
 
 async function scheduleOptions(ctx: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {

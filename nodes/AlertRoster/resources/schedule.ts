@@ -65,8 +65,9 @@ const properties: INodeProperties[] = [
     RESOURCE,
     ['get', 'update', 'delete', 'getOnCall', 'getRoster'],
     'scheduleId',
-    'Schedule ID',
-    'UUID of the schedule',
+    'Schedule Name or ID',
+    'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+    { type: 'options', typeOptions: { loadOptionsMethod: 'getSchedules' } },
   ),
   stringParam(RESOURCE, ['create'], 'name', 'Name', 'Schedule name'),
   stringParam(

@@ -276,9 +276,9 @@ each `escalation_policy_id`: any source whose ladder's first rung reports
 `unresolved` is one whose next incident pages nobody by name. Run it on a
 schedule with **At** set to the next weekend night.
 
-**Dropdowns.** Every Schedule ID field on the Layer, Override, Handoff and
-Check-In resources is a dropdown filled from the responder credential, and
-still takes an expression. Source ID on Incident → Create stays a plain
+**Dropdowns.** Every Schedule ID field, on the Schedule resource itself and
+on Layer, Override, Handoff and Check-In, is a dropdown filled from the
+responder credential, and still takes an expression. Source ID on Incident → Create stays a plain
 field: that resource runs on an integration key, which cannot list sources.
 
 ### Record
