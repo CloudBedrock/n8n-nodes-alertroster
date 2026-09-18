@@ -65,13 +65,15 @@ and signs in again when it expires or is rejected. Admin-only operations
 - **Fresh versus stale tokens.** The server lets a lapsed access token
   through for five more minutes on the incident list, incident get and
   timeline, acknowledge, resolve, reassign, silence and the user list, and on
-  nothing else: every schedule, layer, override, handoff and check-in write,
-  and the search, report, context and briefing routes, want a current token. The node signs
+  nothing else on the incident side. The check-in transitions (arm, extend,
+  satisfy, cancel) and the briefing get the grace too; check-in create, edit,
+  delete and the code routes, every schedule, layer, override and handoff
+  write, and the search, report and context routes want a current token. The node signs
   in again a minute before its cached token expires, so this only shows up if
   a workflow is run against a session cache another host filled long ago.
 - **Rate limits.** There is no rate limit on the incident list, so the
   trigger's poll interval is a cost choice, not a quota one. Password sign-in
-  is throttled at 20 per 15 minutes per IP address, which is why the session
+  is throttled at 30 per 15 minutes per IP address, which is why the session
   is cached and shared across executions rather than logging in per item.
 
 ## AlertRoster node
@@ -322,7 +324,7 @@ The body is:
 `alert` is the station's own alert object, not the cloud incident. When the
 alert mirrors a cloud incident, `alert.cloud.incident_id` is the incident's
 id, and a workflow that wants the authoritative record passes it to
-**Responder Incident → Get** (or Get Timeline, Get Search) on this node;
+**Responder Incident → Get** (or Get Search) on this node;
 `alert.cloud` is `null` for an alert raised on the LAN that never reached the
 cloud. The station retries a POST twice on a transport error or a 5xx, one
 second apart, and does not retry a 4xx, so answer quickly (n8n's default

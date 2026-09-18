@@ -128,7 +128,7 @@ export class ResponderSession {
         }
         if (error.status === 429) {
           throw new Error(
-            'AlertRoster: sign-in rate limited (20 password logins per 15 minutes per IP). Wait and retry.',
+            'AlertRoster: sign-in rate limited (30 password logins per 15 minutes per IP). Wait and retry.',
           );
         }
       }
