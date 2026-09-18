@@ -1,6 +1,6 @@
 import { IDataObject, INodeProperties } from 'n8n-workflow';
 
-import { ResourceModule, show, stringParam, unwrap, unwrapList } from './shared';
+import { ResourceModule, briefing, show, stringParam, unwrap, unwrapList } from './shared';
 
 const RESOURCE = 'responderIncident';
 
@@ -31,6 +31,13 @@ const properties: INodeProperties[] = [
         value: 'get',
         description: 'Read an incident, open or closed',
         action: 'Get an incident',
+      },
+      {
+        name: 'Get Context',
+        value: 'getContext',
+        description:
+          "What the situational sources say now about the destination a missing person stated: weather, advisories, fire, seismic and road items in the sources' own words. Answers { available: false, reason: 'no_destination' } on an incident with no located destination, which is most of them.",
+        action: 'Get the destination context of an incident',
       },
       {
         name: 'Get Many',
@@ -107,6 +114,7 @@ const properties: INodeProperties[] = [
       'getReport',
       'shareReport',
       'withdrawReport',
+      'getContext',
     ],
     'incidentId',
     'Incident ID',
@@ -204,6 +212,12 @@ export const responderIncidentResource: ResourceModule = {
         await client.request('POST', `/api/v1/incidents/${id}/search/beacon`, { body }),
         'command',
       );
+    },
+    // The frozen destination's live conditions (INCIDENT_API.md §15); most
+    // incidents have no located destination, and the helper says so softly.
+    async getContext(itemIndex, client) {
+      const id = this.getNodeParameter('incidentId', itemIndex) as string;
+      return briefing(client.request('GET', `/api/v1/incidents/${id}/context`));
     },
     // The responder report is a capability URL to a one-page missing-person
     // report (INCIDENT_API.md §14). One live link per incident: minting again

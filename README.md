@@ -148,6 +148,7 @@ needs to follow the ladder.
 | Share Report | Mints the public link to the one-page missing-person report for a missed check-in, or returns the link already live (one per incident, so a printed QR code keeps working; the node cannot tell the two apart, compare `created_at` if it matters). Returns the report: `id` (the link, not the incident), `incident_id`, `url`, `expires_at` (seven days), `created_at`, `created_by_user_id`, `view_count`, `last_viewed_at`. `409 not_a_checkin_incident` on an incident a monitor raised; `409 incident_closed` after stand-down. |
 | Get Report | The live link and its `view_count` / `last_viewed_at` as `{ shared: true, incident_id, ...report }`, or `{ shared: false, incident_id }` when nothing has been shared. Answers on a closed incident too. |
 | Withdraw Report | Revokes the link; it stops answering on the next request. Returns `{ success: true, id }` whether or not a link was live, and after the incident has closed. |
+| Get Context | What the situational sources say **now** about the destination the subject stated **then** (frozen when the miss raised): the same briefing object as Check-In → Get Briefing, with `available: true`. `{ available: false, reason: 'no_destination' }` on an incident with no located destination, which is most of them. |
 
 Get Search, Locate and Beacon need the subject's consent (`409 consent_missing`)
 and an open incident (`409 incident_closed`). Photo URLs in `subject.profile`
@@ -235,6 +236,7 @@ enabled.
 | Get Beacon Opt-In / Set Beacon Opt-In | Whether a searcher may light this responder's torch and sound their phone during an activation (Responder Incident: Beacon). Separate from location. Opting out expires every live command and puts out a burning beacon. |
 | Get Images Opt-In / Set Images Opt-In | Whether photographs are stored. Opting out deletes every photograph, with no open-incident exception. The upload flow itself is not in the node. |
 | Get Profile / Set Profile | The reusable vehicle description (make, model, colour, year, plate). A blank text field clears it; a year of 0 clears the year. Set is refused with `409 consent_missing` until the responder opts in. |
+| Get Briefing | The pre-departure briefing for the check-in's stated destination: `destination`, `stated_at`, `assembled_at`, `radius_km`, `complete`, `lines` (one sentence per item), `items` (each with `kind`, `severity`, `headline`, `description`, `instruction`, `area`, timestamps, `url` and a `source` with `attribution` that must be shown alongside it) and `sources` (each with `state` and `answered`), plus `available: true`. `{ available: false, reason: 'no_destination' }` when the check-in has no located destination (no details consent, nothing typed, or a place named in words with no coordinates). Pairs with Arm as a scheduled step. |
 | Set Details | Check-in ID plus wearing, origin, destination (text and/or coordinates) for one check-in. Blanks clear. Refused with `409 consent_missing` until the responder opts in; coordinates are dropped (returned `null`) unless location is also opted in. |
 
 Arm, Extend, Satisfy and Cancel accept an optional **Location** (latitude,
@@ -242,6 +244,14 @@ longitude, accuracy, fix time) and an optional **Details** object with the same
 fields as Set Details. The server stores either only if the responder has
 opted in, never fails the transition over them, and never reports whether it
 kept them. Read the check-in back to see what it holds.
+
+**A briefing is not advice.** It reports what the sources say and when they
+said it. Nothing in it says a trip is safe, and it is never a reason a
+check-in was not armed or an escalation did not run. `severity` and the text
+are the source's own words. "Nothing reported" and "the sources could not be
+reached" are different answers: branch on `complete` and each source's
+`answered` before telling anyone that all is quiet. A source that is down
+never fails the request; it is reported inside `sources`.
 
 ## AlertRoster Trigger node
 
