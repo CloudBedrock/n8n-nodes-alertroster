@@ -241,7 +241,8 @@ enabled.
 | Extend | By seconds; optional expected deadline as a guard against racing another client. |
 | Satisfy / Cancel | Optional code when the check-in requires one. |
 | Set Require Code | Boolean. |
-| Get Code Status / Set Code / Clear Code / Clear Duress Code | Codes are 6-12 digits. |
+| Get Code Status / Set Code / Clear Code / Clear Duress Code | Codes are 6-12 digits. Set Code writes what it is given, both codes at once. |
+| Set Duress Code | Sets or changes the duress code alone: **Current Code** (the check-in code, or the current duress code) proves the caller and is not written. Use this rather than Set Code to change a second code; `409 no_code_set` when there is no check-in code yet, `422` when the new duress code equals the check-in code. Needs a current access token. |
 | Get Location Opt-In / Set Location Opt-In | Whether positions are stored with transitions. |
 | Get Details Opt-In / Set Details Opt-In | Whether a search description is stored. Opting out deletes the profile and every stored description. |
 | Get Beacon Opt-In / Set Beacon Opt-In | Whether a searcher may light this responder's torch and sound their phone during an activation (Responder Incident: Beacon). Separate from location. Opting out expires every live command and puts out a burning beacon. |

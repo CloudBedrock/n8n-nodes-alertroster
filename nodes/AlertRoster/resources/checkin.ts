@@ -149,6 +149,13 @@ const properties: INodeProperties[] = [
         action: 'Set the details opt-in',
       },
       {
+        name: 'Set Duress Code',
+        value: 'setDuressCode',
+        description:
+          'Set or change the duress code alone, proved by the current check-in code, which is not rewritten. Use this rather than Set Code to change a second code.',
+        action: 'Set the duress code',
+      },
+      {
         name: 'Set Images Opt-In',
         value: 'setImagesOptIn',
         description: 'Opting out deletes every stored photograph',
@@ -368,6 +375,28 @@ const properties: INodeProperties[] = [
       'Optional 6-12 digit code that satisfies the check-in while silently raising a duress incident',
   },
   {
+    displayName: 'Current Code',
+    name: 'currentCode',
+    type: 'string',
+    typeOptions: { password: true },
+    default: '',
+    required: true,
+    displayOptions: show(RESOURCE, ['setDuressCode']),
+    description:
+      'The check-in code as it is now (the current duress code is accepted too). Proves the caller and is not written.',
+  },
+  {
+    displayName: 'New Duress Code',
+    name: 'newDuressCode',
+    type: 'string',
+    typeOptions: { password: true },
+    default: '',
+    required: true,
+    displayOptions: show(RESOURCE, ['setDuressCode']),
+    description:
+      '6-12 digits that satisfy the check-in while silently raising a duress incident. Must differ from the check-in code.',
+  },
+  {
     displayName: 'Opt In',
     name: 'optIn',
     type: 'boolean',
@@ -545,6 +574,17 @@ export const checkinResource: ResourceModule = {
     },
     async clearCode(_itemIndex, client) {
       return client.request('DELETE', '/api/v1/checkins/code');
+    },
+    // PUT /checkins/duress_code writes the duress code and nothing else: `code`
+    // proves the caller. Set Code would rewrite the check-in code with
+    // whatever it was given, which is the mistake this route exists to
+    // prevent (a person typing the wrong one of their two codes).
+    async setDuressCode(itemIndex, client) {
+      const body = {
+        code: this.getNodeParameter('currentCode', itemIndex),
+        duress_code: this.getNodeParameter('newDuressCode', itemIndex),
+      };
+      return client.request('PUT', '/api/v1/checkins/duress_code', { body });
     },
     async clearDuressCode(_itemIndex, client) {
       return client.request('DELETE', '/api/v1/checkins/duress_code');
