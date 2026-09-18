@@ -6,11 +6,13 @@
  * tolerance therefore bounds a third party replaying a captured request,
  * not a legitimate retry: ids have to be remembered across the whole retry
  * horizon, and 24 hours covers it with room for jitter and queue delay.
- * The cap bounds the static-data row for an account that never stops.
+ * The cap bounds the static-data row, which is rewritten on every accepted
+ * event; past it the oldest ids are forgotten and a retry of one would run
+ * again, which the README names as the second best-effort case.
  */
 
 export const DEDUP_TTL_MS = 24 * 60 * 60 * 1000;
-export const DEDUP_MAX_IDS = 5000;
+export const DEDUP_MAX_IDS = 2000;
 
 export type SeenIds = Record<string, number>;
 

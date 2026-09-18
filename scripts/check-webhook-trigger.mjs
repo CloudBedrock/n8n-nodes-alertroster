@@ -52,9 +52,24 @@ function delivery(body, { secret = SECRET, at = Math.floor(Date.now() / 1000), r
 }
 
 /** Runs webhook() against a stubbed n8n context and reports what n8n would send. */
-async function run(deliveryLike, { params = {}, state = {}, secret = SECRET, headers } = {}) {
+/** n8n hands static data out as a proxy that notices assignment, not mutation. */
+function observable(target) {
+  return new Proxy(target, {
+    set(obj, key, value) {
+      obj[key] = value;
+      if (key !== '__dataChanged') obj.__dataChanged = true;
+      return true;
+    },
+  });
+}
+
+async function run(
+  deliveryLike,
+  { params = {}, state = {}, secret = SECRET, headers, credentials } = {},
+) {
   const node = new AlertRosterWebhookTrigger();
   const sent = { status: 200, body: undefined };
+  const staticData = observable(state);
   const req = {
     rawBody: deliveryLike.rawBody,
     headers: headers ?? deliveryLike.headers,
@@ -80,8 +95,8 @@ async function run(deliveryLike, { params = {}, state = {}, secret = SECRET, hea
     }),
     getHeaderData: () => req.headers,
     getNodeParameter: (name, fallback) => (name in params ? params[name] : fallback),
-    getCredentials: async () => ({ secret }),
-    getWorkflowStaticData: () => state,
+    getCredentials: credentials ?? (async () => ({ secret })),
+    getWorkflowStaticData: () => staticData,
     getMode: () => 'trigger',
     getNode: () => ({ name: 'AlertRoster Webhook Trigger' }),
     helpers: { returnJsonArray: (rows) => rows.map((json) => ({ json })) },
@@ -141,6 +156,28 @@ test('rejects a tampered body, a wrong secret, and a missing secret', async () =
   assert.match(out.sent.body.error, /no signing secret/);
 });
 
+test('a missing or unreadable credential is a 401, never a throw', async () => {
+  const body = eventBody('incident.triggered');
+  const { sent, result } = await run(delivery(body), {
+    credentials: async () => {
+      throw new Error('Credential not found');
+    },
+  });
+  assert.equal(result.noWebhookResponse, true);
+  assert.equal(sent.status, 401);
+  assert.match(sent.body.error, /credential/);
+});
+
+test('static data is assigned on the accept path and untouched on ignore paths', async () => {
+  const state = {};
+  await run(delivery(eventBody('incident.triggered')), { state });
+  assert.equal(state.__dataChanged, true);
+  const quiet = {};
+  await run(delivery(eventBody('foo.bar')), { state: quiet });
+  await run(delivery(eventBody('incident.triggered')), { state: quiet, params: { duressOnly: true } });
+  assert.equal(quiet.__dataChanged, undefined);
+});
+
 test('trims a secret pasted with a trailing newline', async () => {
   const body = eventBody('incident.triggered');
   const { items } = await run(delivery(body), { secret: `${SECRET}\n` });
@@ -184,8 +221,8 @@ test('dedup memory prunes by age and caps by count, and never mutates its input'
   assert.deepEqual(Object.keys(seen).sort(), ['fresh', 'old']);
   const big = {};
   for (let i = 0; i < 6000; i++) big[`e${i}`] = now - i;
-  const b = rememberEventId(big, 'latest', now, DEDUP_TTL_MS, 5000);
-  assert.equal(Object.keys(b.seen).length, 5000);
+  const b = rememberEventId(big, 'latest', now, DEDUP_TTL_MS, 2000);
+  assert.equal(Object.keys(b.seen).length, 2000);
   assert.equal('latest' in b.seen, true);
   assert.equal('e5999' in b.seen, false);
 });

@@ -8,7 +8,8 @@ dead-man's-switch check-ins, and start workflows when incidents change state.
 - [Installation](#installation)
 - [Credentials](#credentials)
 - [AlertRoster node](#alertroster-node)
-- [AlertRoster Trigger node](#alertroster-trigger-node)
+- [AlertRoster Webhook Trigger node](#alertroster-webhook-trigger-node)
+- [AlertRoster Trigger node (polling)](#alertroster-trigger-node-polling)
 - [Development](#development)
 
 ## Installation
@@ -20,12 +21,14 @@ In n8n go to **Settings → Community Nodes → Install** and enter
 cd ~/.n8n && npm install n8n-nodes-alertroster
 ```
 
-Restart n8n. Two nodes appear: **AlertRoster** and **AlertRoster Trigger**.
+Restart n8n. Three nodes appear: **AlertRoster**, **AlertRoster Webhook
+Trigger** and **AlertRoster Trigger**.
 
 ## Credentials
 
-AlertRoster has two kinds of API credential. Which one a node needs depends on
-the resource you pick; the UI asks for exactly one.
+AlertRoster has two kinds of API credential, plus the signing secret of an
+inbound webhook endpoint. Which one a node needs depends on the resource you
+pick; the UI asks for exactly one.
 
 ### AlertRoster Integration Key
 
@@ -50,7 +53,9 @@ endpoint created on AlertRoster's Webhooks page. It is shown once there.
 ### AlertRoster Responder
 
 For everything else (Responder Incident, User, Schedule, Layer, Handoff,
-Override, Check-In, Record, Source, Escalation Policy) and for the Trigger node. Enter the responder's **email**
+Override, Check-In, Record, Source, Escalation Policy) and for the polling
+Trigger node (the Webhook Trigger needs only the signing secret). Enter the
+responder's **email**
 and **password**. Responders normally sign in by magic link, so the password is
 opt-in: set one under Settings in AlertRoster first. Leave **Account ID** blank
 unless the email belongs to more than one account; the node then lists the
@@ -362,10 +367,12 @@ What the node does with each delivery, before anything runs:
   eleven hours on a timeout, with the same id);
 - starts the workflow and answers 200 straight away for everything else.
 
-The duplicate memory lives in the workflow's static data and is best effort:
-a retry that lands while a long execution is still running, after n8n's
-answer was lost in transit, can run twice, which is one more reason to
-upsert on `incident.id`.
+The duplicate memory lives in the workflow's static data and is best effort
+in two ways: a retry that lands while a long execution is still running,
+after n8n's answer was lost in transit, can run twice; and the memory keeps
+the newest 2,000 ids, so under more than that many events in a day a retry
+of an older one runs again. Both are one more reason to upsert on
+`incident.id`.
 
 ## AlertRoster Trigger node (polling)
 

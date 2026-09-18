@@ -79,7 +79,7 @@ export class AlertRosterWebhookTrigger implements INodeType {
     subtitle:
       '={{ $parameter["events"].length ? $parameter["events"].join(", ") : "all incident events" }}',
     description:
-      'Starts a workflow when AlertRoster delivers a signed incident webhook: triggered, acknowledged, escalated, reassigned, silenced, updated, or resolved',
+      'Starts a workflow when AlertRoster delivers a signed incident webhook: triggered, acknowledged, escalated, reassigned, silenced, unsilenced, updated, or resolved',
     defaults: {
       name: 'AlertRoster Webhook Trigger',
     },
@@ -164,9 +164,16 @@ export class AlertRosterWebhookTrigger implements INodeType {
       );
     }
 
-    // 2. The signature, before anything that could answer 200.
-    const credentials = await this.getCredentials('alertRosterWebhookApi');
-    const secret = String(credentials.secret ?? '').trim();
+    // 2. The signature, before anything that could answer 200. A missing or
+    //    unreadable credential is a refusal, never a throw: n8n turns a throw
+    //    into a 500, which the server would retry for eleven hours.
+    let secret = '';
+    try {
+      const credentials = await this.getCredentials('alertRosterWebhookApi');
+      secret = String(credentials.secret ?? '').trim();
+    } catch {
+      return refuse(401, 'no AlertRoster webhook credential is set on this node');
+    }
     if (!secret) {
       return refuse(401, 'no signing secret is set on the n8n credential');
     }
@@ -196,9 +203,16 @@ export class AlertRosterWebhookTrigger implements INodeType {
     // 4. Routing. A test event is never subscribable server-side and is only
     //    let through on request; everything else must be an incident event
     //    the node was asked for.
-    const events = this.getNodeParameter('events', []) as string[];
-    const duressOnly = this.getNodeParameter('duressOnly', false) === true;
-    const emitTestEvents = this.getNodeParameter('emitTestEvents', false) === true;
+    let events: string[];
+    let duressOnly: boolean;
+    let emitTestEvents: boolean;
+    try {
+      events = this.getNodeParameter('events', []) as string[];
+      duressOnly = this.getNodeParameter('duressOnly', false) === true;
+      emitTestEvents = this.getNodeParameter('emitTestEvents', false) === true;
+    } catch {
+      return refuse(400, 'the node parameters could not be read');
+    }
     const isTest = body.type === TEST_EVENT;
     if (isTest && !emitTestEvents) {
       return ignore('test');
