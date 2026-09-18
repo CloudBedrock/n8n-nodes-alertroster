@@ -2,11 +2,12 @@ import {
   IDataObject,
   IExecuteFunctions,
   IHttpRequestMethods,
+  INodeExecutionData,
   INodeProperties,
   NodeOperationError,
 } from 'n8n-workflow';
 
-import { AlertRosterHttpError } from '../../../utils/AlertRosterHttp';
+import { AlertRosterDownload, AlertRosterHttpError } from '../../../utils/AlertRosterHttp';
 
 /** What every resource module needs from a client, whichever credential backs it. */
 export interface ApiClient {
@@ -15,13 +16,50 @@ export interface ApiClient {
     path: string,
     options?: { body?: IDataObject; qs?: IDataObject },
   ): Promise<T>;
+  /** Bytes plus headers, for a route that serves a file. Responder sessions only. */
+  download?(
+    method: IHttpRequestMethods,
+    path: string,
+    options?: { qs?: IDataObject },
+  ): Promise<AlertRosterDownload>;
 }
+
+/**
+ * A handler returns plain objects (one item each; arrays fan out), or a
+ * ready-made execution item built with `binaryItem` when the output carries
+ * a file.
+ */
+export type OperationResult = IDataObject | IDataObject[] | INodeExecutionData;
 
 export type OperationHandler = (
   this: IExecuteFunctions,
   itemIndex: number,
   client: ApiClient,
-) => Promise<IDataObject | IDataObject[]>;
+) => Promise<OperationResult>;
+
+// A brand rather than a shape check: a server object that happened to carry
+// `json` and `binary` keys must still be wrapped as ordinary output.
+const BINARY_ITEM = Symbol('alertroster.binaryItem');
+
+/** An execution item carrying a file, marked so `execute()` passes it through. */
+export function binaryItem(
+  json: IDataObject,
+  binary: INodeExecutionData['binary'],
+): INodeExecutionData {
+  const item: INodeExecutionData = { json, binary };
+  Object.defineProperty(item, BINARY_ITEM, { value: true, enumerable: false });
+  return item;
+}
+
+/** A handler result built by `binaryItem`. */
+export function isExecutionItem(result: OperationResult): result is INodeExecutionData {
+  return (
+    result !== null &&
+    typeof result === 'object' &&
+    !Array.isArray(result) &&
+    (result as unknown as Record<symbol, unknown>)[BINARY_ITEM] === true
+  );
+}
 
 export interface ResourceModule {
   /** The `resource` parameter value. */

@@ -17,9 +17,10 @@ import { handoffResource } from './resources/handoff';
 import { incidentResource } from './resources/incident';
 import { layerResource } from './resources/layer';
 import { overrideResource } from './resources/override';
+import { recordsResource } from './resources/records';
 import { responderIncidentResource } from './resources/responderIncident';
 import { scheduleResource } from './resources/schedule';
-import { ApiClient, ResourceModule } from './resources/shared';
+import { ApiClient, ResourceModule, isExecutionItem } from './resources/shared';
 import { userResource } from './resources/user';
 
 const RESOURCES: ResourceModule[] = [
@@ -29,6 +30,7 @@ const RESOURCES: ResourceModule[] = [
   incidentResource,
   layerResource,
   overrideResource,
+  recordsResource,
   responderIncidentResource,
   scheduleResource,
   userResource,
@@ -107,6 +109,12 @@ export class AlertRoster implements INodeType {
             description: 'Admin overrides on a schedule (responder sign-in)',
           },
           {
+            name: 'Record',
+            value: 'record',
+            description:
+              'The incident record over a date range: incidents raised, the coverage report, and the raw export (responder sign-in, admin)',
+          },
+          {
             name: 'Responder Incident',
             value: 'responderIncident',
             description:
@@ -152,6 +160,10 @@ export class AlertRoster implements INodeType {
     for (let i = 0; i < items.length; i++) {
       try {
         const result = await handler.call(this, i, client);
+        if (isExecutionItem(result)) {
+          returnData.push({ ...result, pairedItem: { item: i } });
+          continue;
+        }
         const rows = Array.isArray(result) ? result : [result];
         for (const row of rows) {
           returnData.push({ json: row, pairedItem: { item: i } });

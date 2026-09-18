@@ -46,6 +46,14 @@ export interface AlertRosterRequestOptions {
   token?: string;
 }
 
+/** A response kept as bytes, for a route that serves a file. */
+export interface AlertRosterDownload {
+  body: Buffer;
+  contentType: string;
+  /** From `content-disposition`, when the server names the file. */
+  fileName?: string;
+}
+
 /**
  * Thin HTTP client for the AlertRoster REST API. One generic request method
  * that serialises query/body, injects a Bearer token, and surfaces the server's
@@ -64,6 +72,50 @@ export class AlertRosterHttp {
     method: IHttpRequestMethods,
     path: string,
     options: AlertRosterRequestOptions = {},
+  ): Promise<T> {
+    return this.send(method, path, options, async (response) => {
+      const text = await response.text();
+      const parsed = parseBody(text);
+      if (!response.ok) {
+        throw errorFrom(response, parsed, text);
+      }
+      return parsed as T;
+    });
+  }
+
+  /**
+   * Like `request`, but keeps the body as bytes and reads the content type
+   * and the `content-disposition` filename, for a route that serves a file.
+   * Errors are still the server's JSON and are raised the same way.
+   */
+  async download(
+    method: IHttpRequestMethods,
+    path: string,
+    options: AlertRosterRequestOptions = {},
+  ): Promise<AlertRosterDownload> {
+    return this.send(method, path, { ...options, accept: '*/*' }, async (response) => {
+      if (!response.ok) {
+        const text = await response.text();
+        throw errorFrom(response, parseBody(text), text);
+      }
+      return {
+        body: Buffer.from(await response.arrayBuffer()),
+        contentType: response.headers.get('content-type') ?? 'application/octet-stream',
+        fileName: fileNameFrom(response.headers.get('content-disposition')),
+      };
+    });
+  }
+
+  /**
+   * One request, with the timeout covering the whole exchange: the body is
+   * consumed inside the same window as the headers, so a stalled transfer is
+   * aborted rather than waited on forever.
+   */
+  private async send<T>(
+    method: IHttpRequestMethods,
+    path: string,
+    options: AlertRosterRequestOptions & { accept?: string },
+    consume: (response: Response) => Promise<T>,
   ): Promise<T> {
     let url = `${this.baseUrl}${path}`;
 
@@ -88,7 +140,7 @@ export class AlertRosterHttp {
     }
 
     const headers: Record<string, string> = {
-      Accept: 'application/json',
+      Accept: options.accept ?? 'application/json',
       'Content-Type': 'application/json',
     };
     if (options.token) {
@@ -108,25 +160,49 @@ export class AlertRosterHttp {
             : undefined,
         signal: controller.signal,
       });
-
-      const text = await response.text();
-      const parsed = parseBody(text);
-
-      if (!response.ok) {
-        const { code, detail } = describeError(parsed, text || response.statusText);
-        throw new AlertRosterHttpError(
-          response.status,
-          code,
-          `HTTP ${response.status}: ${detail}`,
-          parsed,
-        );
-      }
-
-      return parsed as T;
+      return await consume(response);
     } finally {
       clearTimeout(timer);
     }
   }
+}
+
+function errorFrom(response: Response, parsed: unknown, text: string): AlertRosterHttpError {
+  const { code, detail } = describeError(parsed, text || response.statusText);
+  return new AlertRosterHttpError(
+    response.status,
+    code,
+    `HTTP ${response.status}: ${detail}`,
+    parsed,
+  );
+}
+
+/**
+ * The file name a `content-disposition` header carries, reduced to a bare
+ * name: the header is the server's, so a path or a control character in it
+ * must not reach a downstream file node. RFC 5987 `filename*=` is
+ * percent-decoded; the plain `filename=` form is not, and a decode that
+ * fails leaves the raw name.
+ */
+export function fileNameFrom(disposition: string | null): string | undefined {
+  if (!disposition) {
+    return undefined;
+  }
+  const match = /filename(\*)?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
+  if (!match) {
+    return undefined;
+  }
+  let name = match[2];
+  if (match[1]) {
+    try {
+      name = decodeURIComponent(name);
+    } catch {
+      // keep the raw name
+    }
+  }
+  const base = name.split(/[\\/]/).pop() ?? '';
+  const clean = base.replace(/[\u0000-\u001f]/g, '').trim();
+  return clean || undefined;
 }
 
 function parseBody(text: string): unknown {
