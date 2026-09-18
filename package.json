@@ -33,7 +33,8 @@
     "lint": "eslint nodes/**/*.ts credentials/**/*.ts utils/**/*.ts --ext .ts",
     "lintfix": "eslint nodes/**/*.ts credentials/**/*.ts utils/**/*.ts --ext .ts --fix",
     "check:coverage": "node scripts/check-openapi-coverage.mjs",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "check:webhook": "node --test scripts/check-webhook-trigger.mjs"
   },
   "files": [
     "dist"
@@ -42,11 +43,13 @@
     "n8nNodesApiVersion": 1,
     "credentials": [
       "dist/credentials/AlertRosterIntegrationKeyApi.credentials.js",
-      "dist/credentials/AlertRosterResponderApi.credentials.js"
+      "dist/credentials/AlertRosterResponderApi.credentials.js",
+      "dist/credentials/AlertRosterWebhookApi.credentials.js"
     ],
     "nodes": [
       "dist/nodes/AlertRoster/AlertRoster.node.js",
-      "dist/nodes/AlertRoster/AlertRosterTrigger.node.js"
+      "dist/nodes/AlertRoster/AlertRosterTrigger.node.js",
+      "dist/nodes/AlertRoster/AlertRosterWebhookTrigger.node.js"
     ]
   },
   "devDependencies": {

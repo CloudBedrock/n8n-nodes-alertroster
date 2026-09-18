@@ -8,7 +8,8 @@ dead-man's-switch check-ins, and start workflows when incidents change state.
 - [Installation](#installation)
 - [Credentials](#credentials)
 - [AlertRoster node](#alertroster-node)
-- [AlertRoster Trigger node](#alertroster-trigger-node)
+- [AlertRoster Webhook Trigger node](#alertroster-webhook-trigger-node)
+- [AlertRoster Trigger node (polling)](#alertroster-trigger-node-polling)
 - [Development](#development)
 
 ## Installation
@@ -20,12 +21,14 @@ In n8n go to **Settings → Community Nodes → Install** and enter
 cd ~/.n8n && npm install n8n-nodes-alertroster
 ```
 
-Restart n8n. Two nodes appear: **AlertRoster** and **AlertRoster Trigger**.
+Restart n8n. Three nodes appear: **AlertRoster**, **AlertRoster Webhook
+Trigger** and **AlertRoster Trigger**.
 
 ## Credentials
 
-AlertRoster has two kinds of API credential. Which one a node needs depends on
-the resource you pick; the UI asks for exactly one.
+AlertRoster has two kinds of API credential, plus the signing secret of an
+inbound webhook endpoint. Which one a node needs depends on the resource you
+pick; the UI asks for exactly one.
 
 ### AlertRoster Integration Key
 
@@ -42,10 +45,17 @@ before calling the server and tells you which kind it wanted. Base URL defaults
 to `https://alertroster.com`; set it to your own host for a self-hosted
 instance. HTTPS is required except for localhost.
 
+### AlertRoster Webhook Secret
+
+For the **AlertRoster Webhook Trigger** only: the signing secret of one
+endpoint created on AlertRoster's Webhooks page. It is shown once there.
+
 ### AlertRoster Responder
 
 For everything else (Responder Incident, User, Schedule, Layer, Handoff,
-Override, Check-In, Record, Source, Escalation Policy) and for the Trigger node. Enter the responder's **email**
+Override, Check-In, Record, Source, Escalation Policy) and for the polling
+Trigger node (the Webhook Trigger needs only the signing secret). Enter the
+responder's **email**
 and **password**. Responders normally sign in by magic link, so the password is
 opt-in: set one under Settings in AlertRoster first. Leave **Account ID** blank
 unless the email belongs to more than one account; the node then lists the
@@ -313,10 +323,61 @@ the summary; `ack_seconds_median` and `unrostered_pages` are the two numbers
 a manager reads first. For the compliance folder, Record → Export with
 `timeline_csv` on a monthly schedule into a Google Drive or S3 node.
 
-## AlertRoster Trigger node
+## AlertRoster Webhook Trigger node
 
-AlertRoster does not send outbound webhooks, so this is a polling trigger
-using the Responder credential. Pick the events to watch:
+AlertRoster sends signed webhooks when an incident changes, and this node
+receives them: no polling, no responder login, and nothing missed between
+polls. Use it wherever n8n has a public URL; the polling trigger below is the
+fallback.
+
+**Setup.** Add the node, activate the workflow, and copy its **Production**
+URL. On AlertRoster's **Webhooks** page (admin, Duty of Care tier) create an
+endpoint with that URL and, unless you want fewer, no event filter (an
+endpoint subscribed to nothing receives every event, including kinds added
+later). The signing secret is shown exactly once there: paste it into an
+**AlertRoster Webhook Secret** credential. Then use **Send a test event** on
+that page: the delivery log shows a 200 (the node answers `ignored: test`
+and starts nothing), and a wrong secret shows as a refused 401 with the
+reason in words. Lost secrets are rotated there, not recovered.
+
+| Option | Meaning |
+|---|---|
+| Events | Which incident events start the workflow: Triggered, Acknowledged, Escalated, Reassigned, Silenced, Unsilenced, Updated, Resolved. Empty means every incident event, including kinds AlertRoster adds later. |
+| Duress Only | Only incidents raised under duress. |
+| Emit Test Events | Whether a "Send a test event" starts the workflow. Its incident is synthetic (nil UUID) and must not be acted on; leave off except while wiring things up. |
+
+Each item is `{ event, incident, event_id, created_at, account_id,
+delivery_attempt }`: the same `event` and `incident` the polling trigger
+emits, so the two are interchangeable downstream. `incident` is the full
+incident object rendered **at send time**: a retried `incident.triggered`
+can arrive with `status: resolved`, and both are true, so treat each item as
+an upsert keyed on `incident.id` and read history from Responder Incident →
+Get Timeline rather than from the sequence of webhooks.
+
+What the node does with each delivery, before anything runs:
+
+- verifies `x-alertroster-signature` (`t=…,v1=…`, HMAC-SHA256 over the raw
+  bytes with the secret) and rejects a signature more than five minutes from
+  its clock; a failure answers 401, which AlertRoster records as `refused`
+  and does not retry, so a rotated or mistyped secret is visible on the
+  Webhooks page;
+- answers 200 and starts nothing for an event kind it was not asked for, a
+  `webhook.test`, an incident the Duress Only filter drops, or a retry of an
+  event id it accepted in the last 24 hours (AlertRoster retries for about
+  eleven hours on a timeout, with the same id);
+- starts the workflow and answers 200 straight away for everything else.
+
+The duplicate memory lives in the workflow's static data and is best effort
+in two ways: a retry that lands while a long execution is still running,
+after n8n's answer was lost in transit, can run twice; and the memory keeps
+the newest 2,000 ids, so under more than that many events in a day a retry
+of an older one runs again. Both are one more reason to upsert on
+`incident.id`.
+
+## AlertRoster Trigger node (polling)
+
+The fallback for an n8n that cannot receive webhooks. It polls with the
+Responder credential. Pick the events to watch:
 
 | Event | Fires when |
 |---|---|

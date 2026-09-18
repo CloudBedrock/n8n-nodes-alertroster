@@ -22,6 +22,7 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run build
       - run: npm run lint
+      - run: npm run check:webhook
       # Fails when the published AlertRoster API has an operation this node
       # neither implements nor excuses in scripts/openapi-coverage-allowlist.json,
       # or when the node calls a route the API no longer documents (exit 1).
