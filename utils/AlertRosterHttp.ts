@@ -46,6 +46,14 @@ export interface AlertRosterRequestOptions {
   token?: string;
 }
 
+/** A response kept as bytes, for a route that serves a file. */
+export interface AlertRosterDownload {
+  body: Buffer;
+  contentType: string;
+  /** From `content-disposition`, when the server names the file. */
+  fileName?: string;
+}
+
 /**
  * Thin HTTP client for the AlertRoster REST API. One generic request method
  * that serialises query/body, injects a Bearer token, and surfaces the server's
@@ -65,6 +73,60 @@ export class AlertRosterHttp {
     path: string,
     options: AlertRosterRequestOptions = {},
   ): Promise<T> {
+    const response = await this.send(method, path, options);
+    const text = await response.text();
+    const parsed = parseBody(text);
+
+    if (!response.ok) {
+      const { code, detail } = describeError(parsed, text || response.statusText);
+      throw new AlertRosterHttpError(
+        response.status,
+        code,
+        `HTTP ${response.status}: ${detail}`,
+        parsed,
+      );
+    }
+
+    return parsed as T;
+  }
+
+  /**
+   * Like `request`, but keeps the body as bytes and reads the content type
+   * and the `content-disposition` filename, for a route that serves a file.
+   * Errors are still the server's JSON and are raised the same way.
+   */
+  async download(
+    method: IHttpRequestMethods,
+    path: string,
+    options: AlertRosterRequestOptions = {},
+  ): Promise<AlertRosterDownload> {
+    const response = await this.send(method, path, { ...options, accept: '*/*' });
+    if (!response.ok) {
+      const text = await response.text();
+      const parsed = parseBody(text);
+      const { code, detail } = describeError(parsed, text || response.statusText);
+      throw new AlertRosterHttpError(
+        response.status,
+        code,
+        `HTTP ${response.status}: ${detail}`,
+        parsed,
+      );
+    }
+    const contentType = response.headers.get('content-type') ?? 'application/octet-stream';
+    const disposition = response.headers.get('content-disposition') ?? '';
+    const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
+    return {
+      body: Buffer.from(await response.arrayBuffer()),
+      contentType,
+      fileName: match ? decodeURIComponent(match[1]) : undefined,
+    };
+  }
+
+  private async send(
+    method: IHttpRequestMethods,
+    path: string,
+    options: AlertRosterRequestOptions & { accept?: string } = {},
+  ): Promise<Response> {
     let url = `${this.baseUrl}${path}`;
 
     if (options.qs && Object.keys(options.qs).length > 0) {
@@ -88,7 +150,7 @@ export class AlertRosterHttp {
     }
 
     const headers: Record<string, string> = {
-      Accept: 'application/json',
+      Accept: options.accept ?? 'application/json',
       'Content-Type': 'application/json',
     };
     if (options.token) {
@@ -99,7 +161,7 @@ export class AlertRosterHttp {
     const timer = setTimeout(() => controller.abort(), this.timeout);
 
     try {
-      const response = await fetch(url, {
+      return await fetch(url, {
         method,
         headers,
         body:
@@ -108,21 +170,6 @@ export class AlertRosterHttp {
             : undefined,
         signal: controller.signal,
       });
-
-      const text = await response.text();
-      const parsed = parseBody(text);
-
-      if (!response.ok) {
-        const { code, detail } = describeError(parsed, text || response.statusText);
-        throw new AlertRosterHttpError(
-          response.status,
-          code,
-          `HTTP ${response.status}: ${detail}`,
-          parsed,
-        );
-      }
-
-      return parsed as T;
     } finally {
       clearTimeout(timer);
     }

@@ -2,11 +2,12 @@ import {
   IDataObject,
   IExecuteFunctions,
   IHttpRequestMethods,
+  INodeExecutionData,
   INodeProperties,
   NodeOperationError,
 } from 'n8n-workflow';
 
-import { AlertRosterHttpError } from '../../../utils/AlertRosterHttp';
+import { AlertRosterDownload, AlertRosterHttpError } from '../../../utils/AlertRosterHttp';
 
 /** What every resource module needs from a client, whichever credential backs it. */
 export interface ApiClient {
@@ -15,13 +16,32 @@ export interface ApiClient {
     path: string,
     options?: { body?: IDataObject; qs?: IDataObject },
   ): Promise<T>;
+  /** Bytes plus headers, for a route that serves a file. Responder sessions only. */
+  download?(
+    method: IHttpRequestMethods,
+    path: string,
+    options?: { qs?: IDataObject },
+  ): Promise<AlertRosterDownload>;
 }
+
+/**
+ * A handler returns plain objects (one item each; arrays fan out), or a
+ * ready-made execution item when the output carries binary data.
+ */
+export type OperationResult = IDataObject | IDataObject[] | INodeExecutionData;
 
 export type OperationHandler = (
   this: IExecuteFunctions,
   itemIndex: number,
   client: ApiClient,
-) => Promise<IDataObject | IDataObject[]>;
+) => Promise<OperationResult>;
+
+/** A handler result that already is an execution item (json + binary). */
+export function isExecutionItem(result: OperationResult): result is INodeExecutionData {
+  return (
+    !Array.isArray(result) && typeof result === 'object' && 'json' in result && 'binary' in result
+  );
+}
 
 export interface ResourceModule {
   /** The `resource` parameter value. */

@@ -1,6 +1,7 @@
 import { IDataObject, IHttpRequestMethods } from 'n8n-workflow';
 
 import {
+  AlertRosterDownload,
   AlertRosterHttp,
   AlertRosterHttpError,
   AlertRosterRequestOptions,
@@ -71,16 +72,29 @@ export class ResponderSession {
     path: string,
     options: Omit<AlertRosterRequestOptions, 'token'> = {},
   ): Promise<T> {
+    return this.withToken((token) => this.http.request<T>(method, path, { ...options, token }));
+  }
+
+  /** `AlertRosterHttp.download` on this session, for a route that serves a file. */
+  async download(
+    method: IHttpRequestMethods,
+    path: string,
+    options: Omit<AlertRosterRequestOptions, 'token'> = {},
+  ): Promise<AlertRosterDownload> {
+    return this.withToken((token) => this.http.download(method, path, { ...options, token }));
+  }
+
+  private async withToken<T>(send: (token: string) => Promise<T>): Promise<T> {
     const session = await this.session();
     try {
-      return await this.http.request<T>(method, path, { ...options, token: session.token });
+      return await send(session.token);
     } catch (error) {
       // A 401 on an otherwise-valid session means the token was revoked
       // (logout elsewhere, family revocation). Sign in once and retry.
       if (error instanceof AlertRosterHttpError && error.status === 401) {
         this.forget();
         const fresh = await this.session();
-        return await this.http.request<T>(method, path, { ...options, token: fresh.token });
+        return await send(fresh.token);
       }
       throw error;
     }

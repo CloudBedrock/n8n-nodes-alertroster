@@ -13,7 +13,8 @@
 //   * the allowlist excuses something that is now implemented, or that the
 //     spec no longer has (a stale excuse).
 //
-// Call sites are found by a static scan for `request('METHOD', 'path')` in
+// Call sites are found by a static scan for `request('METHOD', 'path')` (or
+// `download(...)`, for a route that serves a file) in
 // nodes/ and utils/, which is the only way the node talks to the server (see
 // utils/AlertRosterHttp.ts). Template placeholders such as `${id}` and spec
 // parameters such as `{id}` are both normalised to `{}` before comparing.
@@ -105,7 +106,8 @@ function* sourceFiles(dir) {
 /** Every `'METHOD', 'path'` argument pair passed to a client `request(...)`. */
 function nodeOperations() {
   const ops = new Map();
-  const pattern = /request(?:<[^>]*>)?\(\s*'(GET|POST|PUT|PATCH|DELETE)'\s*,\s*(['"`])([^'"`]+)\2/g;
+  const pattern =
+    /(?:request|download)(?:<[^>]*>)?\(\s*'(GET|POST|PUT|PATCH|DELETE)'\s*,\s*(['"`])([^'"`]+)\2/g;
   for (const dir of SCAN_DIRS) {
     for (const file of sourceFiles(join(ROOT, dir))) {
       const text = readFileSync(file, 'utf8');

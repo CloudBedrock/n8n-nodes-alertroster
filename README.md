@@ -45,7 +45,7 @@ instance. HTTPS is required except for localhost.
 ### AlertRoster Responder
 
 For everything else (Responder Incident, User, Schedule, Layer, Handoff,
-Override, Check-In) and for the Trigger node. Enter the responder's **email**
+Override, Check-In, Record) and for the Trigger node. Enter the responder's **email**
 and **password**. Responders normally sign in by magic link, so the password is
 opt-in: set one under Settings in AlertRoster first. Leave **Account ID** blank
 unless the email belongs to more than one account; the node then lists the
@@ -253,6 +253,37 @@ are the source's own words. "Nothing reported" and "the sources could not be
 reached" are different answers: branch on `complete` and each source's
 `answered` before telling anyone that all is quiet. A source that is down
 never fails the request; it is reported inside `sources`.
+
+### Record
+
+The incident record over a date range, for the manager's weekly "who did not
+answer, and how fast did the rest answer" and the compliance folder's monthly
+export. Admin role, and the API tier (Duty of Care). `From` and `To` are
+dates, taken as whole days in UTC at both ends, so what a person looked at on
+the records page and what a workflow fetched are the same period; both are
+required, and a range longer than 366 days is refused. Incidents are counted
+by when they were raised. These routes need a current access token.
+
+| Operation | Notes |
+|---|---|
+| Get Incidents | Every incident raised in the range, newest first, one item each: `id`, `title`, `status` (`resolved`, `auto_resolved` or `expired`; `expired` is the finding), `priority`, `urgency`, `source_id`, `checkin_id`, `triggered_at`, `acknowledged_at`, `acknowledged_by_user_id` (null when a ticket system acknowledged over the Incident resource), `assigned_to_user_id`, `resolved_at`, `escalation_rule_position`, `escalation_repeat_count`. Return All follows the server's pages; otherwise Limit. |
+| Get Coverage | The coverage report as one object: `incidents`, `acknowledged`, `unacknowledged`, `expired`, `ack_seconds_median`, `ack_seconds_worst`, `rostered_pages`, `unrostered_pages` and the `unrostered` moments (this system needed a responder and resolved to nobody), `checkins_satisfied` / `extended` / `cancelled` / `missed`, `compliance_rate` and `compliance_percent`. Every figure counts rows written at the time, never a replay of today's rota over past dates. A null is a specific answer, not zero: `compliance_rate: null` means no deadlines fell in the range. |
+| Export | The raw rows as a file in the item's `data` binary property: `timeline_csv` (the incident timeline), `checkin_csv` (the check-in events) or `json` (both tables). Byte for byte the file the records page's download button produces, with the server's file name. The item's JSON carries `file_name`, `mime_type` and `bytes`. |
+
+### Ack-latency report
+
+Every station keeps only 24 hours of history, and a phone shows one incident
+at a time; the question "who did not answer last month" is answered here. On
+a Schedule Trigger (weekly), Record → Get Incidents with Return All for the
+last seven days, then a Code node per item: `acknowledged_at - triggered_at`
+in seconds is the ack latency, `status === 'expired'` means nobody answered,
+`acknowledged_by_user_id` null with `status !== 'expired'` means a ticket
+system acknowledged it over the Incident resource, and
+`escalation_rule_position` is how far up the ladder it went. Append the rows
+to a Google Sheet or post the Record → Get Coverage object to a channel as
+the summary; `ack_seconds_median` and `unrostered_pages` are the two numbers
+a manager reads first. For the compliance folder, Record → Export with
+`timeline_csv` on a monthly schedule into a Google Drive or S3 node.
 
 ## AlertRoster Trigger node
 
