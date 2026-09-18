@@ -60,6 +60,13 @@ const properties: INodeProperties[] = [
         action: 'Get the search panel of an incident',
       },
       {
+        name: 'Get Timeline',
+        value: 'getTimeline',
+        description:
+          'Every entry on the incident timeline, oldest first, open or closed: what was triggered and who it woke, every page and its outcome, who acknowledged, silenced, reassigned or resolved. One item per entry.',
+        action: 'Get the timeline of an incident',
+      },
+      {
         name: 'Locate',
         value: 'locate',
         description:
@@ -115,6 +122,7 @@ const properties: INodeProperties[] = [
       'shareReport',
       'withdrawReport',
       'getContext',
+      'getTimeline',
     ],
     'incidentId',
     'Incident ID',
@@ -212,6 +220,17 @@ export const responderIncidentResource: ResourceModule = {
         await client.request('POST', `/api/v1/incidents/${id}/search/beacon`, { body }),
         'command',
       );
+    },
+    // The append-only timeline (INCIDENT_API.md §16): one item per entry so a
+    // workflow filters on `kind`. `seq` is the order, not `at`, which can tie
+    // or be backdated; the incident id rides along on every item.
+    async getTimeline(itemIndex, client) {
+      const id = this.getNodeParameter('incidentId', itemIndex) as string;
+      const entries = unwrapList(
+        await client.request('GET', `/api/v1/incidents/${id}/timeline`),
+        'entries',
+      );
+      return entries.map((entry) => ({ incident_id: id, ...entry }));
     },
     // The frozen destination's live conditions (INCIDENT_API.md §15); most
     // incidents have no located destination, and the helper says so softly.
