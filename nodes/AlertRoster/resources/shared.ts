@@ -168,7 +168,11 @@ export function isNotFound(error: unknown): boolean {
  */
 export async function briefing(request: Promise<IDataObject>): Promise<IDataObject> {
   try {
-    return { available: true, ...unwrap(await request, 'briefing') };
+    const body = (await request).briefing;
+    if (body && typeof body === 'object' && !Array.isArray(body)) {
+      return { available: true, ...(body as IDataObject) };
+    }
+    return { available: false, reason: 'no_briefing' };
   } catch (error) {
     if (
       error instanceof AlertRosterHttpError &&

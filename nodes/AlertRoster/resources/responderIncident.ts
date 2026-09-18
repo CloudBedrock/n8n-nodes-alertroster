@@ -189,10 +189,6 @@ export const responderIncidentResource: ResourceModule = {
     // The search routes apply to an incident a missed check-in raised. On any
     // other incident the panel is empty and both capabilities report
     // `not_a_checkin_incident`; the commands are refused with 409.
-    async getContext(itemIndex, client) {
-      const id = this.getNodeParameter('incidentId', itemIndex) as string;
-      return briefing(client.request('GET', `/api/v1/incidents/${id}/context`));
-    },
     async getSearch(itemIndex, client) {
       const id = this.getNodeParameter('incidentId', itemIndex) as string;
       return unwrap(await client.request('GET', `/api/v1/incidents/${id}/search`), 'search');
@@ -216,6 +212,12 @@ export const responderIncidentResource: ResourceModule = {
         await client.request('POST', `/api/v1/incidents/${id}/search/beacon`, { body }),
         'command',
       );
+    },
+    // The frozen destination's live conditions (INCIDENT_API.md §15); most
+    // incidents have no located destination, and the helper says so softly.
+    async getContext(itemIndex, client) {
+      const id = this.getNodeParameter('incidentId', itemIndex) as string;
+      return briefing(client.request('GET', `/api/v1/incidents/${id}/context`));
     },
     // The responder report is a capability URL to a one-page missing-person
     // report (INCIDENT_API.md §14). One live link per incident: minting again
