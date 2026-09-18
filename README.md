@@ -55,6 +55,27 @@ The node signs in, caches the 15-minute access token in workflow static data,
 and signs in again when it expires or is rejected. Admin-only operations
 (schedule and layer edits, overrides) need a responder with the `admin` role.
 
+### Operating notes
+
+- **Tier.** Integration keys and account tokens are minted from the
+  **Duty of Care** tier up (the gate is on minting, so a key that exists keeps
+  working), and the scheduling layer (schedules, layers, overrides, handoffs)
+  is available from the Lone Worker tier up. Below that the server answers
+  `403` with a plan refusal, which the node surfaces as the error message.
+- **Fresh versus stale tokens.** The server lets a lapsed access token
+  through for five more minutes on the incident list, incident get and
+  timeline, acknowledge, resolve, reassign, silence and the user list, and on
+  nothing else on the incident side. The check-in transitions (arm, extend,
+  satisfy, cancel) and the briefing get the grace too; check-in create, edit,
+  delete and the code routes, every schedule, layer, override and handoff
+  write, and the search, report and context routes want a current token. The node signs
+  in again a minute before its cached token expires, so this only shows up if
+  a workflow is run against a session cache another host filled long ago.
+- **Rate limits.** There is no rate limit on the incident list, so the
+  trigger's poll interval is a cost choice, not a quota one. Password sign-in
+  is throttled at 30 per 15 minutes per IP address, which is why the session
+  is cached and shared across executions rather than logging in per item.
+
 ## AlertRoster node
 
 Every response is unwrapped to the object it describes; list operations emit
@@ -262,6 +283,58 @@ make a trigger fire for those incidents alone.
 Upgrading from a release before these events existed: the first poll after
 the upgrade names only status transitions for incidents that were already
 open, then carries the full snapshot from there.
+
+## Recipes
+
+### A desktop station as an n8n webhook
+
+The AlertRoster desktop station keeps its local outputs (siren relays, screen
+takeover, commands) on its own receiver service, and one of the output kinds
+is `webhook`: the station POSTs JSON to a URL when an alert starts paging and
+again when it stops. Pointing that at an n8n **Webhook** node makes n8n the
+station's logic for anything beyond a relay, with no AlertRoster server
+change, and it works whether the alert came down from the cloud or was raised
+on the LAN. This is where a Slack post, a PLC call or a log line belongs.
+
+1. In n8n add a Webhook node, method POST, and copy its URL (the production
+   URL once the workflow is active).
+2. On the station, Outputs → add an output of kind **Webhook** with that URL.
+3. Branch on `{{ $json.body.state }}`: `fired` when an alert has started
+   paging, `cleared` when it was acknowledged, resolved or expired. The same
+   value arrives in the `X-AlertRoster-State` header.
+
+The body is:
+
+```json
+{
+  "event": "<output event name>",
+  "state": "fired",
+  "output": { "id": "…", "name": "Dispatch Slack" },
+  "alert": {
+    "id": "…", "status": "triggered", "urgency": "high",
+    "title": "…", "detail": null, "dedup_key": null,
+    "source": { … }, "triggered_at": "…", "ack_timeout_seconds": 300,
+    "expires_at": "…", "acknowledged_at": null, "acknowledged_by": null,
+    "resolved_at": null, "emergency": true, "available_actions": [ … ],
+    "cloud": { "incident_id": "…", "status": "…", "assigned_to": "…", "duress": false, … }
+  }
+}
+```
+
+`alert` is the station's own alert object, not the cloud incident. When the
+alert mirrors a cloud incident, `alert.cloud.incident_id` is the incident's
+id, and a workflow that wants the authoritative record passes it to
+**Responder Incident → Get** (or Get Search) on this node;
+`alert.cloud` is `null` for an alert raised on the LAN that never reached the
+cloud. The station retries a POST twice on a transport error or a 5xx, one
+second apart, and does not retry a 4xx, so answer quickly (n8n's default
+"respond immediately" is right) and do the work after responding.
+
+The POST is not signed: anyone who can reach the URL can send one. Keep the
+webhook on the LAN or behind a tunnel that only the station can use, and do
+not have the workflow act on `fired` alone for anything that costs money or
+wakes people; confirm against the cloud incident first. Signed POSTs are
+tracked as alertroster-desktop #121.
 
 ## Development
 
